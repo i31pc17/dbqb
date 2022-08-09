@@ -142,4 +142,10 @@ const where = {
 
 // id = 'test' OR nick = 'test' ...
 const whereOr = {};
+
+const query = await dbqb.selectQuery({
+    table: 'user',
+    where,
+    whereOr
+});
 ```
