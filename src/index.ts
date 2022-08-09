@@ -1134,6 +1134,8 @@ class DBQB {
                         return null;
                     }
                     data[field] = chkVal;
+                } else {
+                    data[field] = '';
                 }
                 sData += `, "${data[field]}"`;
             }
