@@ -954,6 +954,8 @@ class DBQB {
                 if (_.isNaN(strLen) || strLen <= 0) {
                     strLen = 255;
                 }
+                // 숫자 방지
+                val = `${val}`;
                 val = val.substring(0, strLen);
             }
             val = this.escape(val);
