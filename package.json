@@ -1,6 +1,6 @@
 {
   "name": "dbqb",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "mysql query builder",
   "type": "module",
   "exports": {
@@ -21,8 +21,21 @@
   "license": "MIT",
   "devDependencies": {
     "@types/lodash": "^4.14.182",
-    "lodash": "^4.17.21",
     "unbuild": "^0.7.6"
   },
-  "dependencies": {}
+  "dependencies": {
+    "lodash": "^4.17.21"
+  },
+  "homepage": "https://github.com/i31pc17/dbqb",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/i31pc17/dbqb.git"
+  },
+  "keywords": [
+    "mysql",
+    "query builder",
+    "nodejs",
+    "database",
+    "db"
+  ]
 }

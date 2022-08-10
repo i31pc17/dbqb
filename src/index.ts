@@ -420,7 +420,8 @@ class DBQB {
         }
 
         // having
-        if ((_.get(active, 'having') && _.size(active.having) > 0) || (_.get(active, 'havingOr') && _.size(active.havingOr) > 0)) {
+        if ((_.get(active, 'having') && (_.size(active.having) > 0 || Object.getOwnPropertySymbols(active.having).length > 0)) ||
+            (_.get(active, 'havingOr') && (_.size(active.havingOr) > 0 || Object.getOwnPropertySymbols(active.havingOr).length > 0))) {
             const hActive = { ...active };
             hActive.where = active.having;
             hActive.whereOr = active.havingOr;
@@ -462,7 +463,8 @@ class DBQB {
         }
 
         // having 예외처리
-        if ((_.get(active, 'having') && _.size(active.having) > 0) || (_.get(active, 'havingOr') && _.size(active.havingOr) > 0)) {
+        if ((_.get(active, 'having') && (_.size(active.having) > 0 || Object.getOwnPropertySymbols(active.having).length > 0)) ||
+            (_.get(active, 'havingOr') && (_.size(active.havingOr) > 0 || Object.getOwnPropertySymbols(active.havingOr).length > 0))) {
             _.unset(active, 'offset');
             _.unset(active, 'limit');
             let sQuery = await this.selectQuery(active);
@@ -753,14 +755,14 @@ class DBQB {
         let whereAnd = '';
         let whereOr = '';
 
-        if (_.get(active, 'where') && _.size(active.where) > 0) {
+        if (_.get(active, 'where') && (_.size(active.where) > 0 || Object.getOwnPropertySymbols(active.where).length > 0)) {
             whereAnd = this.getWhereBuild(active, active.where, 'AND', false, match);
             if (whereAnd === null || !whereAnd) {
                 return null;
             }
         }
 
-        if (_.get(active, 'whereOr') && _.size(active.whereOr) > 0) {
+        if (_.get(active, 'whereOr') && (_.size(active.whereOr) > 0 || Object.getOwnPropertySymbols(active.whereOr).length > 0)) {
             whereOr = this.getWhereBuild(active, active.whereOr, 'OR', false, match);
             if (whereOr === null || !whereOr) {
                 return null;
@@ -790,7 +792,11 @@ class DBQB {
 
     private getWhereBuild(active: IActivePrivate, list: any, where = 'AND', bracket = false, match: any = {}) {
         let sReturn = '';
-        for (const _key of Reflect.ownKeys(list)) {
+        const keys = [
+            ...Object.keys(list),
+            ...Object.getOwnPropertySymbols(list)
+        ];
+        for (const _key of keys) {
             const _val = list[_key];
             if (sReturn.length > 0) {
                 sReturn += ` ${where} `;
