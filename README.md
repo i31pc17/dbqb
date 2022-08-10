@@ -19,7 +19,7 @@ const dbqb = new DBQB({
      */
     getTables: () => string[],
     /*
-     * ※ Query = `SHOW FIELDS FROM ${table}`
+     * Query = `SHOW FIELDS FROM ${table}`
      * [
      *      {
      *          Field: 'idx',
@@ -106,7 +106,8 @@ const deleteQuery = await dbqb.deleteQuery({
 });
 ```
 
-## WHERE
+## WHERE / HAVING
+#### where / whereOr / having / havingOr
 ```ts
 // id = 'test' AND id != 'test' .....
 const where = {
@@ -125,9 +126,9 @@ const where = {
     id: ['test', 'test2'],
     // id NOT IN ('test', 'test2')
     'id !=': ['test', 'test2'],
-    // nick LIKE 'test%',
+    // nick LIKE 'test%'
     'nick %': 'test%',
-    // nick NOT LIKE
+    // nick NOT LIKE 'test%'
     'nick !%': 'test%',
     // ( nick = 'test' OR id = 'test' OR (adult_yn = 'Y' AND name = 'test2'))
     [Symbol('OR')]: {
@@ -147,5 +148,147 @@ const query = await dbqb.selectQuery({
     table: 'user',
     where,
     whereOr
+});
+
+// SELECT * FROM `user` WHERE id = 'test' AND nick != "test" AND (field1 = "123" OR field2 = "321");
+const whereQuery = await dbqb.selectQuery({
+    table: 'user',
+    where: {
+        id: 'test'
+    },
+    sWhere: 'AND nick != "test" AND (field1 = "123" OR field2 = "321")'
+});
+
+// SELECT * FROM `user` WHERE id = nick AND nick = "test";
+const bangQuery = await dbqb.selectQuery({
+    table: 'user',
+    where: {
+        '!id': 'name',
+        '!nick': '"test"'
+    }
+});
+```
+
+## LIMIT
+```ts
+// SELEC * FROM `user` WHERE adult_yn = 'Y' LIMIT 0, 10;
+const limitQuery = await dbqb.selectQuery({
+    table: 'user',
+    where: {
+        adult_yn: 'Y'
+    },
+    offset: 0,
+    limit: 10
+});
+```
+
+## FIELD
+```ts
+// SELECT user.*, id, nick, name AS user_name, SUM(coin) AS coin_sum FROM `user`;
+const fieldQuery = await dbqb.selectQuery({
+    table: 'user',
+    field: ['*', 'id', 'nick'],
+    fieldAs: {
+        name: 'user_name',
+        'SUM(coin)': 'coin_sum'
+    }
+});
+
+// SELECT COUNT(IF(adult_yn = "Y", 1, NULL) AS adult_count FROM `user`;
+const fieldQuery2 = await dbqb.selectQuery({
+    table: 'user',
+    fieldAs: {
+        '!COUNT(IF(adult_yn = "Y", 1, NULL)': 'adult_count'
+    }
+});
+
+// SELECT (SELECT name FROM profile WHERE profile.user_idx = user.idx LIMIT 1) AS profile_name FROM `user`;
+const fieldQuery3 = await dbqb.selectQuery({
+    table: 'user',
+    fieldAs: {
+        '!(SELECT name FROM profile WHERE profile.user_idx = user.idx LIMIT 1)': 'profile_name'
+    }
+});
+```
+
+## JOIN
+#### LEFT / INNER / RIGHT / FULL OUTER
+```ts
+// SELECT user.* FROM `user` LEFT JOIN `profile` ON `profile`.user_idx = `user`.idx;
+const leftJoinQuery = await dbqb.selectQuery({
+    table: 'user',
+    leftJoin: [
+        {
+            table: 'profile',
+            on: '`profile`.user_idx = `user`.idx'
+        }
+    ]
+});
+
+// SELECT user.id, user.name, profile.name AS profile_name FROM `user` INNER JOIN `profile` ON `profile`.user_idx = `user`.idx;
+const innerJoinQuery = await dbqb.selectQuery({
+    table: 'user',
+    field: ['id', 'name'],
+    fieldAs: {
+        'profile.name': 'profile_name'
+    },
+    leftJoin: [
+        {
+            table: 'profile',
+            on: '`profile`.user_idx = `user`.idx'
+        }
+    ]
+});
+```
+
+## GROUP BY
+```ts
+// SELECT * FROM `user` GROUP BY id, adult_yn;
+const groupByQuery = await dbqb.selectQuery({
+    table: 'user',
+    groupBy: ['id', 'adult_yn']
+});
+```
+
+## SET
+```ts
+// UPDATE `user` SET login_date = '2000-11-01', login_count = login_count + 1 WHERE idx = 1;
+// `+=`, `-=`
+const setQuery = await dbqb.updateQuery({
+    table: 'user',
+    set: {
+        login_date: '2000-11-01',
+        'login_count +=': 1
+    },
+    where: {
+        idx: 1
+    }
+});
+```
+
+## ORDER BY
+```ts
+// SELECT * FROM `user` WHERE nick LIKE 'test%' ORDER BY login_date DESC, idx ASC;
+const orderQuery = await dbqb.selectQuery({
+    table: 'user',
+    where: {
+        'nick %': 'test%'
+    },
+    orderBy: {
+        login_date: 'DESC',
+        idx: 'ASC'
+    }
+});
+```
+
+## INDEX
+```ts
+// SELECT * FROM `user` USE INDEX (id_index) WHERE id = 'test';
+const indexQuery = await dbqb.selectQuery({
+    table: 'user',
+    where: {
+        id: 'test'
+    },
+    useIndex: 'id_index'
 });
 ```
