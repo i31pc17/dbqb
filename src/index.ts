@@ -27,9 +27,18 @@ export interface IActive {
     set?: Record<string, any>;
 }
 
+export interface IFieldItem {
+    Field: string;
+    Type: string;
+    Null: string;
+    Key: string;
+    Default: string;
+    Extra: string;
+}
+
 export interface IDB {
     getTables: () => string[] | Promise<string[]>;
-    getFields: (table: string) => Record<string, any> | Promise<Record<string, any>>;
+    getFields: (table: string) => IFieldItem[] | Promise<IFieldItem[]>;
 }
 
 interface IActivePrivate extends IActive {
@@ -65,7 +74,7 @@ export interface IActiveJoin {
 class DBQB {
     private db: IDB;
     private tables: null | string[] = null;
-    private fields: Record<string, any> = {};
+    private fields: Record<string, IFieldItem[]> = {};
     private joins = {
         innerJoin: 'INNER',
         leftJoin: 'LEFT',
@@ -343,8 +352,8 @@ class DBQB {
         if (!(await this.checkTable(table))) {
             return false;
         }
-        const aField = await this.getFields(table);
-        let aCheck = _.difference(field, _.keys(aField));
+        const aField = _.map(await this.getFields(table), _item => _item.Field);
+        let aCheck = _.difference(field, aField);
 
         if (_.size(aCheck) > 0 && isFn) {
             for (let val of aCheck) {
@@ -353,7 +362,7 @@ class DBQB {
                     val = chkFn;
                 }
             }
-            aCheck = _.difference(aCheck, _.keys(aField));
+            aCheck = _.difference(aCheck, aField);
         }
 
         if (_.size(aCheck) === 0) {
@@ -553,7 +562,7 @@ class DBQB {
                 return null;
             }
         } else {
-            active.field = _.keys(await this.getFields(active.table));
+            active.field = _.map(await this.getFields(active.table), _item => _item.Field);
         }
 
         const query = [
@@ -1141,11 +1150,12 @@ class DBQB {
                         this.addErrorLogs(`data err : ${aTFInfo.field} = ${data[field]}`);
                         return null;
                     }
-                    data[field] = chkVal;
+                    sData += `, "${chkVal}"`;
+                } else if(_.has(data, field)) {
+                    sData += `, "${data[field]}"`;
                 } else {
-                    data[field] = '';
+                    sData += `, null`;
                 }
-                sData += `, "${data[field]}"`;
             }
 
             sDataList += `${sData.substring(1)} )`;

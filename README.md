@@ -20,18 +20,18 @@ const dbqb = new DBQB({
     getTables: () => string[],
     /*
      * ※ Query = `SHOW FIELDS FROM ${table}`
-     * {
-     *      'idx': {
+     * [
+     *      {
      *          Field: 'idx',
      *          Type: 'int'
      *      },
-     *      'nick': {
+     *      {
      *          Field: 'nick',
      *          Type: 'varchar(32)'
      *      }
-     * }
+     * ]
      */
-    getFields: (table: string) => Record<string, any> 
+    getFields: (table: string) => IFieldItem[] 
 });
 
 // SELECT * FROM `user` WHERE id = 'test';
