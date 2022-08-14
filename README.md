@@ -274,6 +274,18 @@ const orderQuery = await dbqb.selectQuery({
     where: {
         'nick %': 'test%'
     },
+    orderBy: [
+        ['login_date', 'DESC'],
+        ['idx', 'DESC'],
+    ]
+});
+
+// SELECT * FROM `user` WHERE nick LIKE 'test%' ORDER BY login_date DESC, idx ASC;
+const orderQuery2 = await dbqb.selectQuery({
+    table: 'user',
+    where: {
+        'nick %': 'test%'
+    },
     orderBy: {
         login_date: 'DESC',
         idx: 'ASC'

@@ -18,7 +18,7 @@ export interface IActive {
     whereOr?: any;
     sWhere?: string;
     groupBy?: string[];
-    orderBy?: Record<string, 'ASC' | 'DESC'>;
+    orderBy?: Record<string, 'ASC' | 'DESC'> | [string, 'ASC' | 'DESC'][];
     having?: any;
     havingOr?: any;
     offset?: number;
@@ -1014,18 +1014,35 @@ class DBQB {
     private getOrderByQuery(active: IActivePrivate) {
         let sOrderBy = '';
         if (_.get(active, 'orderBy') && _.size(active.orderBy) > 0) {
+            const isArray = _.isArray(active.orderBy);
             for (const key of _.keys(active.orderBy)) {
-                const val = active.orderBy[key].toUpperCase();
-                if (!_.includes(['ASC', 'DESC'], val)) {
-                    this.addErrorLogs(`orderBy : ${key} : ${val}`);
+                const val = active.orderBy[key];
+                let _key = '';
+                let _val = '';
+
+                if (isArray) {
+                    if (!_.isArray(val) || val.length !== 2) {
+                        this.addErrorLogs(`orderBy : ${key} : ${val}`);
+                        return null;
+                    }
+                    _key = val[0];
+                    _val = val[1].toUpperCase();
+                } else {
+                    _key = key;
+                    _val = val.toUpperCase();
+                }
+
+
+                if (!_.includes(['ASC', 'DESC'], _val)) {
+                    this.addErrorLogs(`orderBy : ${_key} : ${_val}`);
                     return null;
                 }
 
-                const aTFInfo = this.getTableField(active, key);
+                const aTFInfo = this.getTableField(active, _key);
                 if (aTFInfo === null) {
                     return null;
                 }
-                sOrderBy += `, ${aTFInfo.field} ${val} `;
+                sOrderBy += `, ${aTFInfo.field} ${_val} `;
             }
             if (sOrderBy.length > 0) {
                 sOrderBy = sOrderBy.substring(1);
