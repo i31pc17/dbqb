@@ -958,16 +958,19 @@ class DBQB {
                 check = false;
             }
         } else if (_.startsWith(type, 'text') || _.startsWith(type, 'varchar') || _.startsWith(type, 'mediumtext') || _.startsWith(type, 'longtext') || _.startsWith(type, 'char')) {
-            if (_.startsWith(type, 'varchar') || _.startsWith(type, 'char')) {
-                let strLen = _.toNumber(this.pregMatch(type, /[a-z]+\(([0-9]+)\)/, 1));
-                if (_.isNaN(strLen) || strLen <= 0) {
-                    strLen = 255;
+            // is null 예외처리
+            if (val !== null) {
+                if (_.startsWith(type, 'varchar') || _.startsWith(type, 'char')) {
+                    let strLen = _.toNumber(this.pregMatch(type, /[a-z]+\(([0-9]+)\)/, 1));
+                    if (_.isNaN(strLen) || strLen <= 0) {
+                        strLen = 255;
+                    }
+                    // 숫자 방지
+                    val = `${val}`;
+                    val = val.substring(0, strLen);
                 }
-                // 숫자 방지
-                val = `${val}`;
-                val = val.substring(0, strLen);
+                val = this.escape(val);
             }
-            val = this.escape(val);
         } else if (_.startsWith(type, 'enum')) {
             const sEnum = type.substring(6, type.length - 2);
             const aEnum = _.split(sEnum, '\',\'');
