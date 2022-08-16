@@ -983,6 +983,10 @@ class DBQB {
             if (val !== val2) {
                 check = false;
             }
+        } else if (type === 'json') {
+            if (val !== null) {
+                val = this.escape(JSON.stringify(val));
+            }
         }
 
         if (val === null) {

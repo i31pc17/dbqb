@@ -35,6 +35,7 @@ const dbqb = new DBQB({
                     { Field: 'user_idx', Type: 'int' },
                     { Field: 'title', Type: 'varchar(32)' },
                     { Field: 'content', Type: 'text' },
+                    { Field: 'json', Type: 'json' },
                     { Field: 'create_at', Type: 'datetime' },
                 ]
                 break;
