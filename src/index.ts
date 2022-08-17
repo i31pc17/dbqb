@@ -1179,7 +1179,7 @@ class DBQB {
                         return null;
                     }
                     sData += `, "${chkVal}"`;
-                } else if(_.has(data, field)) {
+                } else if(_.has(data, field) && data[field] !== null) {
                     sData += `, "${data[field]}"`;
                 } else {
                     sData += `, null`;

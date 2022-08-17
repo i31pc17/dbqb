@@ -82,6 +82,11 @@ const insertAllQuery = await dbqb.insertAllQuery({
         {
             user_idx: 2,
             nick: 'hello',
+        },
+        {
+            user_idx: 2,
+            nick: 'hello',
+            sns_url: null
         }
     ]
 });
