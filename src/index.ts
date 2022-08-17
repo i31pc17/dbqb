@@ -1134,10 +1134,14 @@ class DBQB {
             }
 
             sData += `, ${aTFInfo.field} = `;
-            if (!aTFInfo.continue) {
-                _val = `"${_val}"`;
+            if (_val === null) {
+                sData += 'null ';
+            } else {
+                if (!aTFInfo.continue) {
+                    _val = `"${_val}"`;
+                }
+                sData += `${_val} `;
             }
-            sData += `${_val} `;
         }
 
         return sData.substring(1);
