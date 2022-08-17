@@ -95,7 +95,8 @@ console.log(`insertAllQuery : ${insertAllQuery}`);
 const updateQuery = await dbqb.updateQuery({
     table: 'user',
     set: {
-        email: 'test@daum.net'
+        email: 'test@daum.net',
+        phone: null
     },
     where: {
         idx: 3

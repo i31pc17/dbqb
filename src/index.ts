@@ -1221,10 +1221,14 @@ class DBQB {
                 case '=':
                 {
                     sSet += `, ${aTFInfo.field} = `;
-                    if (!aTFInfo.continue) {
-                        val = `"${val}"`;
+                    if (val === null) {
+                        sSet += `null `;
+                    } else {
+                        if (!aTFInfo.continue) {
+                            val = `"${val}"`;
+                        }
+                        sSet += `${val} `;
                     }
-                    sSet += `${val} `;
                     break;
                 }
                 case '+=':
