@@ -12,31 +12,31 @@ const dbqb = new DBQB({
         switch (table) {
             case 'user':
                 return [
-                    { Field: 'idx', Type: 'int' },
-                    { Field: 'email', Type: 'varchar(32)' },
-                    { Field: 'password', Type: 'varchar(255)' },
-                    { Field: 'auth_yn', Type: "enum('Y','N')" },
-                    { Field: 'name', Type: 'varchar(32)' },
-                    { Field: 'phone', Type: 'varchar(32)' },
-                    { Field: 'join_at', Type: 'datetime' },
-                    { Field: 'login_at', Type: 'datetime' },
-                    { Field: 'login_count', Type: 'int' },
+                    { Field: 'idx', Type: 'int', Null: 'NO', Key: 'PRI', Default: '', Extra: 'auto_increment' },
+                    { Field: 'email', Type: 'varchar(32)', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'password', Type: 'varchar(255)', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'auth_yn', Type: "enum('Y','N')", Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'name', Type: 'varchar(32)', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'phone', Type: 'varchar(32)', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'join_at', Type: 'datetime', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'login_at', Type: 'datetime', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'login_count', Type: 'int', Null: 'NO', Key: '', Default: '', Extra: '' },
                 ];
             case 'profile':
                 return [
-                    { Field: 'idx', Type: 'int' },
-                    { Field: 'user_idx', Type: 'int' },
-                    { Field: 'nick', Type: 'varchar(32)' },
-                    { Field: 'sns_url', Type: 'varchar(255)' },
+                    { Field: 'idx', Type: 'int', Null: 'NO', Key: 'PRI', Default: '', Extra: 'auto_increment' },
+                    { Field: 'user_idx', Type: 'int', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'nick', Type: 'varchar(32)', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'sns_url', Type: 'varchar(255)', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'json', Type: 'json', Null: 'NO', Key: '', Default: '', Extra: '' },
                 ];
             case 'board':
                 return [
-                    { Field: 'idx', Type: 'int' },
-                    { Field: 'user_idx', Type: 'int' },
-                    { Field: 'title', Type: 'varchar(32)' },
-                    { Field: 'content', Type: 'text' },
-                    { Field: 'json', Type: 'json' },
-                    { Field: 'create_at', Type: 'datetime' },
+                    { Field: 'idx', Type: 'int', Null: 'NO', Key: 'PRI', Default: '', Extra: 'auto_increment' },
+                    { Field: 'user_idx', Type: 'int', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'title', Type: 'varchar(32)', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'content', Type: 'text', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'create_at', Type: 'datetime', Null: 'NO', Key: '', Default: '', Extra: '' },
                 ]
                 break;
             default:
@@ -66,7 +66,10 @@ const insertQuery = await dbqb.insertQuery({
     data: {
         user_idx: 1,
         nick: 'test',
-        sns_url: 'https://www.youtube.com/c/test'
+        sns_url: 'https://www.youtube.com/c/test',
+        json: {
+            a: 'aa', b: 2, c: ['c', 'd']
+        }
     }
 });
 console.log(`insertQuery : ${insertQuery}`);
@@ -77,7 +80,8 @@ const insertAllQuery = await dbqb.insertAllQuery({
         {
             user_idx: 1,
             nick: 'test',
-            sns_url: 'https://www.youtube.com/c/test'
+            sns_url: 'https://www.youtube.com/c/test',
+            json: ['1', '2', {a: 'b', c: 'd'}]
         },
         {
             user_idx: 2,
@@ -132,6 +136,7 @@ const selectWhereQuery = await dbqb.selectQuery({
         'idx !=': 3,
         'join_at >=': '2022-01-01 00:00:00',
         login_at: null,
+        join_at: Symbol('login_at'),
         'password !=': null,
         name: ['test', 'test2'],
         'name !=': ['abc', 'xyz'],
@@ -144,7 +149,7 @@ const selectWhereQuery = await dbqb.selectQuery({
                 idx: 2,
                 phone: '010'
             }
-        }
+        },
     }
 });
 console.log(`selectWhereQuery : ${selectWhereQuery}`);
@@ -194,7 +199,7 @@ const havingQuery = await dbqb.selectQuery({
         'COUNT(1)': 'count'
     },
     having: {
-        '!count >=': 10
+        '!count >=': 10,
     }
 });
 console.log(`havingQuery : ${havingQuery}`);
@@ -228,19 +233,33 @@ const fieldQuery2 = await dbqb.selectQuery({
 console.log(`fieldQuery2 : ${fieldQuery2}`);
 
 const leftJoinQuery = await dbqb.selectQuery({
-    table: 'user',
+    table: 'board',
     field: ['*'],
     fieldAs: {
-        'profile.nick': 'nick'
+        'u.email': 'email',
+        'p.nick': 'nick'
     },
     leftJoin: [
         {
+            table: 'user',
+            as: 'u',
+            on: 'board.user_idx'
+        },
+        {
+            table: 'user',
+            as: 'u',
+            on: Symbol('board.user_idx')
+        },
+        {
             table: 'profile',
-            on: '`profile`.user_idx = `user`.idx'
+            as: 'p',
+            on: {
+                user_idx: Symbol('board.user_idx')
+            }
         }
     ],
     where: {
-        email: 'test@test.com'
+        'u.email': 'test@test.com'
     }
 });
 console.log(`leftJoinQuery : ${leftJoinQuery}`);
@@ -255,6 +274,10 @@ const innerJoinQuery = await dbqb.selectQuery({
         {
             table: 'profile',
             on: '`profile`.user_idx = `user`.idx'
+        },
+        {
+            table: 'board',
+            on: 'user.idx'
         }
     ],
     where: {

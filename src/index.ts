@@ -45,7 +45,7 @@ interface IActivePrivate extends IActive {
     tableList: string[];
     tableAs: Record<string, string[]>;
     asTable: string[];
-    tableField: Record<string, Record<string, string>>;
+    tableField: Record<string, Record<string, IFieldItem>>;
 }
 
 interface IActiveInfo {
@@ -103,6 +103,18 @@ class DBQB {
             this.fields[table] = await this.db.getFields(table);
         }
         return this.fields[table];
+    }
+
+    private getPKField(active: IActivePrivate, table: string) {
+        let PK = '';
+        const fields = _.get(active, `tableField.${table}`, []);
+        _.forEach(fields, (field) => {
+            if (field.Key === 'PRI' && field.Extra === 'auto_increment') {
+                PK = field.Field;
+                return false;
+            }
+        });
+        return PK;
     }
 
     private addErrorLogs(error: string) {
@@ -169,7 +181,7 @@ class DBQB {
             const field = await this.getFields(_table);
             if (field && _.size(field) > 0) {
                 _.forEach(field, (_field) => {
-                    active.tableField[_table][_field.Field] = _field.Type;
+                    active.tableField[_table][_field.Field] = _field;
                 });
             }
         }
@@ -311,7 +323,7 @@ class DBQB {
             returns.field += field;
         } else {
             returns.field += `\`${field}\``;
-            const chkType = _.get(active, `tableField.${realTable}.${field}`);
+            const chkType = _.get(active, `tableField.${realTable}.${field}.Type`);
             if (!chkType) {
                 this.addErrorLogs(`not field : ${returns.field}`);
                 return null;
@@ -429,8 +441,8 @@ class DBQB {
         }
 
         // having
-        if ((_.get(active, 'having') && (_.size(active.having) > 0 || Object.getOwnPropertySymbols(active.having).length > 0)) ||
-            (_.get(active, 'havingOr') && (_.size(active.havingOr) > 0 || Object.getOwnPropertySymbols(active.havingOr).length > 0))) {
+        if ((_.get(active, 'having') && this.getKeys(active.having).length > 0) ||
+            (_.get(active, 'havingOr') && this.getKeys(active.havingOr).length > 0)) {
             const hActive = { ...active };
             hActive.where = active.having;
             hActive.whereOr = active.havingOr;
@@ -472,8 +484,8 @@ class DBQB {
         }
 
         // having 예외처리
-        if ((_.get(active, 'having') && (_.size(active.having) > 0 || Object.getOwnPropertySymbols(active.having).length > 0)) ||
-            (_.get(active, 'havingOr') && (_.size(active.havingOr) > 0 || Object.getOwnPropertySymbols(active.havingOr).length > 0))) {
+        if ((_.get(active, 'having') && this.getKeys(active.having).length > 0) ||
+            (_.get(active, 'havingOr') && this.getKeys(active.havingOr).length > 0)) {
             _.unset(active, 'offset');
             _.unset(active, 'limit');
             let sQuery = await this.selectQuery(active);
@@ -727,23 +739,44 @@ class DBQB {
                         return null;
                     }
 
-                    if (_.isArray(item.on)) {
-                        this.addErrorLogs('join on : is_array');
-                        return null;
-                    }
-
-                    let sJoinOn = item.on;
-
-                    if (_.get(active, 'table') && _.get(active, 'as')) {
-                        sJoinOn = _.replace(sJoinOn, `\`${active.table}\`.`, `\`${active.as}\`.`);
-                        sJoinOn = _.replace(sJoinOn, `${active.table}.`, `${active.as}.`);
-                    }
-
-                    if (!_.get(item, 'query')) {
-                        if (_.get(item, 'table') && _.get(item, 'as')) {
-                            sJoinOn = _.replace(sJoinOn, `\`${item.table}\`.`, `\`${item.as}\`.`);
-                            sJoinOn = _.replace(sJoinOn, `${item.table}.`, `${item.as}.`);
+                    // 필드명만 있는경우는 PK로 비교
+                    if (_.isSymbol(item.on) || (_.isString(item.on) && !this.pregMatch(item.on, /[=><]+/))) {
+                        if (_.isSymbol(item.on)) {
+                            item.on = item.on.description;
                         }
+                        const sPK = this.getPKField(active, item.table);
+                        if (!sPK) {
+                            this.addErrorLogs(`join on PK : ${item.table}`);
+                            return null;
+                        }
+                        item.on = {
+                            [sPK]: Symbol(item.on)
+                        };
+                    }
+
+                    let sJoinOn = '';
+                    if (_.isString(item.on)) {
+                        sJoinOn = item.on;
+
+                        if (_.get(active, 'table') && _.get(active, 'as')) {
+                            sJoinOn = _.replace(sJoinOn, `\`${active.table}\`.`, `\`${active.as}\`.`);
+                        }
+
+                        if (!_.get(item, 'query')) {
+                            if (_.get(item, 'table') && _.get(item, 'as')) {
+                                sJoinOn = _.replace(sJoinOn, `\`${item.table}\`.`, `\`${item.as}\`.`);
+                            }
+                        }
+                    } else if (_.size(item.on) > 0) {
+                        const joinActive = {
+                            ...active,
+                            table: item.table,
+                            as: item.as
+                        };
+                        sJoinOn = this.getWhereBuild(joinActive, item.on, 'AND', false);
+                    } else {
+                        this.addErrorLogs('join on : not support');
+                        return null;
                     }
 
                     sJoin += ` ON ${sJoinOn} `;
@@ -755,24 +788,19 @@ class DBQB {
     }
 
     private getWhereQuery(active: IActivePrivate) {
-        const match = {
-            table: [],
-            field: []
-        };
-
         let sWhere = '';
         let whereAnd = '';
         let whereOr = '';
 
-        if (_.get(active, 'where') && (_.size(active.where) > 0 || Object.getOwnPropertySymbols(active.where).length > 0)) {
-            whereAnd = this.getWhereBuild(active, active.where, 'AND', false, match);
+        if (_.get(active, 'where') && this.getKeys(active.where).length > 0) {
+            whereAnd = this.getWhereBuild(active, active.where, 'AND', false);
             if (whereAnd === null || !whereAnd) {
                 return null;
             }
         }
 
-        if (_.get(active, 'whereOr') && (_.size(active.whereOr) > 0 || Object.getOwnPropertySymbols(active.whereOr).length > 0)) {
-            whereOr = this.getWhereBuild(active, active.whereOr, 'OR', false, match);
+        if (_.get(active, 'whereOr') && this.getKeys(active.whereOr).length > 0) {
+            whereOr = this.getWhereBuild(active, active.whereOr, 'OR', false);
             if (whereOr === null || !whereOr) {
                 return null;
             }
@@ -799,12 +827,9 @@ class DBQB {
         return sWhere;
     }
 
-    private getWhereBuild(active: IActivePrivate, list: any, where = 'AND', bracket = false, match: any = {}) {
+    private getWhereBuild(active: IActivePrivate, list: any, where = 'AND', bracket = false) {
         let sReturn = '';
-        const keys = [
-            ...Object.keys(list),
-            ...Object.getOwnPropertySymbols(list)
-        ];
+        const keys = this.getKeys(list);
         for (const _key of keys) {
             const _val = list[_key];
             if (sReturn.length > 0) {
@@ -818,9 +843,9 @@ class DBQB {
                     this.addErrorLogs(`where symbol : ${des}`);
                     return null;
                 }
-                keyVal = this.getWhereBuild(active, _val, des, true, match);
+                keyVal = this.getWhereBuild(active, _val, des, true);
             } else {
-                keyVal = this.getWhereKeyVal(active, _key, _val, match);
+                keyVal = this.getWhereKeyVal(active, _key, _val);
             }
 
             if (!keyVal) {
@@ -837,7 +862,7 @@ class DBQB {
         return sReturn;
     }
 
-    private getWhereKeyVal(active: IActivePrivate, key: string, val: any, match: any = {}) {
+    private getWhereKeyVal(active: IActivePrivate, key: string, val: any) {
         let sReturn = '';
 
         const aTFInfo = this.getTableField(active, key);
@@ -845,6 +870,7 @@ class DBQB {
             return null;
         }
         let selectVal = false;
+        let valTFInfo = null;
 
         // 해당 조건문만 허용
         const aIfs = ['=', '!=', '>', '>=', '<', '<=', '%', '!%'];
@@ -853,95 +879,115 @@ class DBQB {
             return null;
         }
 
-        // 값이 배열일 경우 예외처리
-        if (_.isArray(val) && !_.includes(['=', '!='], aTFInfo.if)) {
-            this.addErrorLogs(`if error : ${aTFInfo.field} ${aTFInfo.if} (${_.join(val, ', ')})`);
-            return null;
-        }
-
-        // 값이 서브쿼리인지 체크
-        if (_.includes(['=', '!='], aTFInfo.if) && !_.isArray(val)) {
-            if (this.pregMatch(val, /\(SELECT[^\)]+\)/i)) {
-                selectVal = true;
+        // 값이 필드명인지 체크
+        if (_.isSymbol(val)) {
+            valTFInfo = this.getTableField(active, val.description);
+            if (valTFInfo === null) {
+                this.addErrorLogs(`val table field : ${val.description}`);
+                return null;
             }
-        }
 
-        // 데이터 체크
-        if (aTFInfo.type) {
-            if (_.isArray(val)) {
-                for (let _val of val) {
-                    const chkVal = this.checkDataType(aTFInfo.type, _val);
+            // 필드명인 경우 해당 조건문만 허용
+            if (!_.includes(['=', '!=', '>', '>=', '<', '<='], valTFInfo.if)) {
+                this.addErrorLogs(`val table field if error : ${valTFInfo.field} ${valTFInfo.if}`);
+                return null;
+            }
+            
+            // 비교할 필드가 같은지 체크
+            if (aTFInfo.field === valTFInfo.field) {
+                this.addErrorLogs(`val table field same : ${aTFInfo.field} = ${valTFInfo.field}`);
+                return null;
+            }
+        } else {
+            // 값이 배열일 경우 예외처리
+            if (_.isArray(val) && !_.includes(['=', '!='], aTFInfo.if)) {
+                this.addErrorLogs(`if error : ${aTFInfo.field} ${aTFInfo.if} (${_.join(val, ', ')})`);
+                return null;
+            }
+
+            // 값이 서브쿼리인지 체크
+            if (_.includes(['=', '!='], aTFInfo.if) && !_.isArray(val)) {
+                if (this.pregMatch(val, /\(SELECT[^\)]+\)/i)) {
+                    selectVal = true;
+                }
+            }
+
+            // 데이터 체크
+            if (aTFInfo.type) {
+                if (_.isArray(val)) {
+                    for (let _val of val) {
+                        const chkVal = this.checkDataType(aTFInfo.type, _val);
+                        if (chkVal === false) {
+                            this.addErrorLogs(`data err : ${aTFInfo.field} = ${_val}`);
+                            return null;
+                        }
+                        _val = chkVal;
+                    }
+                } else {
+                    const chkVal = this.checkDataType(aTFInfo.type, val);
                     if (chkVal === false) {
-                        this.addErrorLogs(`data err : ${aTFInfo.field} = ${_val}`);
+                        this.addErrorLogs(`data err : ${aTFInfo.field} = ${val}`);
                         return null;
                     }
-                    _val = chkVal;
+                    val = chkVal;
                 }
-            } else {
-                const chkVal = this.checkDataType(aTFInfo.type, val);
-                if (chkVal === false) {
-                    this.addErrorLogs(`data err : ${aTFInfo.field} = ${val}`);
-                    return null;
-                }
-                val = chkVal;
             }
         }
 
         sReturn = `${aTFInfo.field} `;
-        switch (aTFInfo.if) {
-            case '=':
-            case '!=':
-            {
-                const ifArr = { '=': 'IN', '!=': 'NOT IN' };
-                const ifArr2 = { '=': 'IS', '!=': 'IS NOT' };
-                if (val === null) {
-                    sReturn += `${ifArr2[aTFInfo.if]} NULL`;
-                } else if (selectVal) {
-                    sReturn += `${ifArr[aTFInfo.if]} ${val} `;
-                } else if (_.isArray(val)) {
-                    if (aTFInfo.continue) {
-                        sReturn += `${ifArr[aTFInfo.if]} (${_.join(val, ', ')}) `;
+        if (valTFInfo) {
+            sReturn += `${aTFInfo.if} ${valTFInfo.field}`;
+        } else {
+            switch (aTFInfo.if) {
+                case '=':
+                case '!=':
+                {
+                    const ifArr = { '=': 'IN', '!=': 'NOT IN' };
+                    const ifArr2 = { '=': 'IS', '!=': 'IS NOT' };
+                    if (val === null) {
+                        sReturn += `${ifArr2[aTFInfo.if]} NULL`;
+                    } else if (selectVal) {
+                        sReturn += `${ifArr[aTFInfo.if]} ${val} `;
+                    } else if (_.isArray(val)) {
+                        if (aTFInfo.continue) {
+                            sReturn += `${ifArr[aTFInfo.if]} (${_.join(val, ', ')}) `;
+                        } else {
+                            sReturn += `${ifArr[aTFInfo.if]} ("${_.join(val, '", "')}") `;
+                        }
                     } else {
-                        sReturn += `${ifArr[aTFInfo.if]} ("${_.join(val, '", "')}") `;
+                        sReturn += aTFInfo.if;
+                        if (!aTFInfo.continue) {
+                            val = `"${val}"`;
+                        }
+                        sReturn += ` ${val} `;
                     }
-                } else {
+                    break;
+                }
+                case '%':
+                case '!%':
+                {
+                    const ifArr = { '%': 'LIKE', '%=': 'NOT LIKE' };
+                    sReturn += ifArr[aTFInfo.if];
+                    if (!aTFInfo.continue) {
+                        val = `"${val}"`;
+                    }
+                    sReturn += ` ${val} `;
+                    break;
+                }
+                case '>':
+                case '>=':
+                case '<':
+                case '<=':
+                {
                     sReturn += aTFInfo.if;
                     if (!aTFInfo.continue) {
                         val = `"${val}"`;
                     }
                     sReturn += ` ${val} `;
+                    break;
                 }
-                break;
-            }
-            case '%':
-            case '!%':
-            {
-                const ifArr = { '%': 'LIKE', '%=': 'NOT LIKE' };
-                sReturn += ifArr[aTFInfo.if];
-                if (!aTFInfo.continue) {
-                    val = `"${val}"`;
-                }
-                sReturn += ` ${val} `;
-                break;
-            }
-            case '>':
-            case '>=':
-            case '<':
-            case '<=':
-            {
-                sReturn += aTFInfo.if;
-                if (!aTFInfo.continue) {
-                    val = `"${val}"`;
-                }
-                sReturn += ` ${val} `;
-                break;
             }
         }
-
-        if (aTFInfo.realTable && !_.includes(match.table, aTFInfo.realTable)) {
-            match.table.push(aTFInfo.realTable);
-        }
-        match.field.push(aTFInfo.field);
 
         return sReturn;
     }
@@ -1361,6 +1407,21 @@ class DBQB {
             return match;
         }
         return _.get(match, index);
+    }
+
+    private getKeys(array) {
+        if (!array) {
+            return [];
+        }
+
+        try {
+            return [
+                ...Object.keys(array),
+                ...Object.getOwnPropertySymbols(array)
+            ];
+        } catch (e) {
+            return []
+        }
     }
 }
 

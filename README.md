@@ -21,14 +21,8 @@ const dbqb = new DBQB({
     /*
      * Query = `SHOW FIELDS FROM ${table}`
      * [
-     *      {
-     *          Field: 'idx',
-     *          Type: 'int'
-     *      },
-     *      {
-     *          Field: 'nick',
-     *          Type: 'varchar(32)'
-     *      }
+     *      { Field: 'idx', Type: 'int', Null: 'NO', Key: 'PRI', Default: '', Extra: 'auto_increment' },
+     *      { Field: 'nick', Type: 'varchar(32)', Null: 'NO', Key: '', Default: '', Extra: '' },
      * ]
      */
     getFields: (table: string) => IFieldItem[] 
@@ -139,6 +133,8 @@ const where = {
             name: 'test2'
         }
     },
+    // `user`.`nick` = `user`.`name`
+    user: Symbol('user.name')
 };
 
 // id = 'test' OR nick = 'test' ...
@@ -214,13 +210,26 @@ const fieldQuery3 = await dbqb.selectQuery({
 ## JOIN
 #### LEFT / INNER / RIGHT / FULL OUTER
 ```ts
-// SELECT user.* FROM `user` LEFT JOIN `profile` ON `profile`.user_idx = `user`.idx;
+// SELECT profile.* FROM `profile` LEFT JOIN `user` ON `profile`.user_idx = `user`.idx;
 const leftJoinQuery = await dbqb.selectQuery({
-    table: 'user',
+    table: 'profile',
     leftJoin: [
+        // 1
         {
-            table: 'profile',
+            table: 'user',
             on: '`profile`.user_idx = `user`.idx'
+        },
+        // 2
+        {
+            table: 'user',
+            on: {
+                idx: Symbol('profile.user_idx')
+            }
+        },
+        // 3
+        {
+            table: 'user',
+            on: 'profile.user_idx'
         }
     ]
 });
