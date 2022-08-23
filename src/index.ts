@@ -774,6 +774,9 @@ class DBQB {
                             as: item.as
                         };
                         sJoinOn = this.getWhereBuild(joinActive, item.on, 'AND', false);
+                        if (sJoinOn === null || !sJoinOn) {
+                            return null;
+                        }
                     } else {
                         this.addErrorLogs('join on : not support');
                         return null;
@@ -892,7 +895,7 @@ class DBQB {
                 this.addErrorLogs(`val table field if error : ${valTFInfo.field} ${valTFInfo.if}`);
                 return null;
             }
-            
+
             // 비교할 필드가 같은지 체크
             if (aTFInfo.field === valTFInfo.field) {
                 this.addErrorLogs(`val table field same : ${aTFInfo.field} = ${valTFInfo.field}`);
@@ -1300,7 +1303,7 @@ class DBQB {
 
     private clearJoinActive(_active: IActivePrivate, info: IActiveInfo) {
         const active = { ..._active };
-        for (const key of _.keys(this.joins)) {
+        for (const key of ['leftJoin']) {
             if (_.get(active, key) && _.size(active[key]) > 0) {
                 const _join = [];
                 for (const item of active[key]) {
