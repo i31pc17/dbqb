@@ -313,3 +313,24 @@ const indexQuery = await dbqb.selectQuery({
     useIndex: 'id_index'
 });
 ```
+
+## SUB QUERY
+```ts
+// SELECT  COUNT(1) FROM `user` AS `parent`  WHERE  1  AND  `parent`.`idx` = `board`.`user_idx`  AND  `parent`.`idx` != `p`.`user_idx`   LIMIT 0, 1
+const subQuery = await dbqb.selectQuery({
+    table: 'user',
+    as: 'parent',
+    parentTables: [
+        {table: 'board'},
+        {table: 'profile', as: 'p'}
+    ],
+    field: [
+        'COUNT(1)'
+    ],
+    where: {
+        idx: Symbol('board.user_idx'),
+        'idx !=': Symbol('p.user_idx')
+    },
+    limit: 1
+});
+```

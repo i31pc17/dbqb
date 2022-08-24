@@ -327,6 +327,25 @@ const indexQuery = await dbqb.selectQuery({
 });
 console.log(`indexQuery : ${indexQuery}`);
 
+// sub query
+const subQuery = await dbqb.selectQuery({
+    table: 'user',
+    as: 'parent',
+    parentTables: [
+        {table: 'board'},
+        {table: 'profile', as: 'p'}
+    ],
+    field: [
+        'COUNT(1)'
+    ],
+    where: {
+        idx: Symbol('board.user_idx'),
+        'idx !=': Symbol('p.user_idx')
+    },
+    limit: 1
+});
+console.log(`subQuery : ${subQuery}`);
+
 if (dbqb.getErrorLogs().length > 0) {
     console.error('error', dbqb.getErrorLogs());
 } else {

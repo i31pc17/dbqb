@@ -1,6 +1,6 @@
 {
   "name": "dbqb",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "mysql query builder",
   "type": "module",
   "exports": {

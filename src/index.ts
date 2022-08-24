@@ -25,6 +25,7 @@ export interface IActive {
     limit?: number;
     data?: Record<string, any> | Record<string, any>[];
     set?: Record<string, any>;
+    parentTables?: {table: string, as?: string}[];
 }
 
 export interface IFieldItem {
@@ -161,6 +162,19 @@ class DBQB {
                 });
             }
         });
+
+        if (_.size(active.parentTables) > 0) {
+            _.forEach(active.parentTables, (parentTable) => {
+                active.tableList.push(parentTable.table);
+                if (_.get(parentTable, 'as')) {
+                    active.asTable[parentTable.as] = parentTable.table;
+                    if (!active.tableAs[parentTable.table]) {
+                        active.tableAs[parentTable.table] = [];
+                    }
+                    active.tableAs[parentTable.table].push(parentTable.as);
+                }
+            });
+        }
 
         // 필드 예외처리
         if (_.get(active, 'clearField.field') || _.get(active, 'clearField.fieldAs')) {
