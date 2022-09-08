@@ -983,7 +983,7 @@ class DBQB {
                 case '%':
                 case '!%':
                 {
-                    const ifArr = { '%': 'LIKE', '%=': 'NOT LIKE' };
+                    const ifArr = { '%': 'LIKE', '!%': 'NOT LIKE' };
                     sReturn += ifArr[aTFInfo.if];
                     if (!aTFInfo.continue) {
                         val = `"${val}"`;
