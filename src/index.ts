@@ -70,6 +70,7 @@ export interface IActiveJoin {
     on: string;
     as?: string;
     query?: string;
+    clear?: boolean;
 }
 
 class DBQB {
@@ -1338,6 +1339,9 @@ class DBQB {
                         }
                     }
                     if (_.get(item, 'query')) {
+                        isUse = true;
+                    }
+                    if (item.clear === false) {
                         isUse = true;
                     }
 
