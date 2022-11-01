@@ -1,6 +1,6 @@
 import _ from 'lodash';
 
-export interface IActive {
+export interface IActive extends IActiveJoins{
     table: string;
     as?: string;
     field?: string[];
@@ -10,10 +10,6 @@ export interface IActive {
         fieldAs?: Record<string, string>;
     };
     useIndex?: string;
-    innerJoin?: IActiveJoin[];
-    leftJoin?: IActiveJoin[];
-    rightJoin?: IActiveJoin[];
-    outerJoin?: IActiveJoin[];
     where?: any;
     whereOr?: any;
     sWhere?: string;
@@ -65,12 +61,23 @@ interface IActiveInfo {
     set?: string;
 }
 
-export interface IActiveJoin {
+export interface IActiveJoin extends IActiveJoins {
     table: string;
-    on: string;
+    on: any;
     as?: string;
     query?: string;
     clear?: boolean;
+    type?: 'LEFT' | 'left' | 'INNER' | 'inner' | 'RIGHT' | 'right' | 'OUTER' | 'outer';
+    // 내부용
+    path?: string;
+}
+
+interface IActiveJoins {
+    joins?: IActiveJoin[];
+    innerJoin?: IActiveJoin[];
+    leftJoin?: IActiveJoin[];
+    rightJoin?: IActiveJoin[];
+    outerJoin?: IActiveJoin[];
 }
 
 class DBQB {
@@ -146,21 +153,20 @@ class DBQB {
             active.tableAs[active.table] = [active.as];
         }
 
-        _.forEach(this.joins, (val, key) => {
-            if (_.has(active, key) && _.size(active[key]) > 0) {
-                _.forEach(active[key], (item: IActiveJoin) => {
-                    if (_.get(item, 'table')) {
-                        active.tableList.push(item.table);
+        // join
+        const joins = this.getJoins(active);
+        active.joins = joins;
+        _.forEach(joins, (join) => {
+            if (join.table) {
+                active.tableList.push(join.table);
 
-                        if (_.get(item, 'as')) {
-                            active.asTable[item.as] = item.table;
-                            if (!active.tableAs[item.table]) {
-                                active.tableAs[item.table] = [];
-                            }
-                            active.tableAs[item.table].push(item.as);
-                        }
+                if (join.as) {
+                    active.asTable[join.as] = join.table;
+                    if (!active.tableAs[join.table]) {
+                        active.tableAs[join.table] = [];
                     }
-                });
+                    active.tableAs[join.table].push(join.as);
+                }
             }
         });
 
@@ -543,7 +549,7 @@ class DBQB {
 
         // join (필요없는 조인 제거)
         const joinActive = this.clearJoinActive(active, info);
-        const sJoin = this.getJoinQuery(joinActive);
+        const sJoin = this.getJoinQuery(joinActive, true);
         if (sJoin === null) {
             return null;
         }
@@ -721,87 +727,133 @@ class DBQB {
         return this.makeQuery(query, info);
     }
 
-    private getJoinQuery(active: IActivePrivate) {
-        let sJoin = '';
-
-        for (const key of _.keys(this.joins)) {
-            const val = this.joins[key];
-
+    private getJoins(active: IActiveJoins, parentPath = '') {
+        let joins: IActiveJoin[] = [];
+        const joinType = {
+            innerJoin: 'INNER',
+            leftJoin: 'LEFT',
+            rightJoin: 'RIGHT',
+            outerJoin: 'OUTER',
+            joins: 'joins'
+        };
+        for (const key of _.keys(joinType)) {
             if (_.get(active, key) && _.size(active[key]) > 0) {
-                for (const item of active[key]) {
-                    sJoin += ` ${val} JOIN `;
-
-                    if (_.get(item, 'query')) {
-                        sJoin += ` ( ${item.query} ) `;
-                        // 쿼리 조인은 as 필수
-                        if (!_.get(item, 'as')) {
-                            this.addErrorLogs('join query need as');
-                            return null;
-                        }
-                    } else if (_.get(item, 'table')) {
-                        sJoin += ` \`${item.table}\` `;
-                    } else {
-                        this.addErrorLogs('join no table');
-                        return null;
+                for (const item of active[key] as IActiveJoin[]) {
+                    const join = {
+                        ...item
+                    };
+                    if (key !== 'joins') {
+                        join.type = joinType[key];
+                    } else if (!join.type) {
+                        join.type = 'LEFT';
+                    }
+                    join.type = join.type.toUpperCase() as any;
+                    join.path = `${join.table}:${join.as || ''}`;
+                    if (parentPath) {
+                        join.path = `${parentPath}.${join.path}`;
                     }
 
-                    if (_.get(item, 'as')) {
-                        sJoin += ` AS ${item.as}`;
+                    _.unset(join, 'joins');
+                    _.unset(join, 'leftJoin');
+                    _.unset(join, 'innerJoin');
+                    _.unset(join, 'rightJoin');
+                    _.unset(join, 'outerJoin');
+
+                    joins.push(join);
+                    if (item.joins || item.leftJoin || item.innerJoin || item.rightJoin || item.outerJoin) {
+                        const joins2 = this.getJoins(item, join.path);
+                        if (_.size(joins2) > 0) {
+                            joins = [
+                                ...joins,
+                                ...joins2
+                            ];
+                        }
                     }
-
-                    if (!_.get(item, 'on')) {
-                        this.addErrorLogs('join no on');
-                        return null;
-                    }
-
-                    // 필드명만 있는경우는 PK로 비교
-                    if (_.isSymbol(item.on) || (_.isString(item.on) && !this.pregMatch(item.on, /[=><]+/))) {
-                        if (_.isSymbol(item.on)) {
-                            item.on = item.on.description;
-                        }
-                        const sPK = this.getPKField(active, item.table);
-                        if (!sPK) {
-                            this.addErrorLogs(`join on PK : ${item.table}`);
-                            return null;
-                        }
-                        item.on = {
-                            [sPK]: Symbol(item.on)
-                        };
-                    }
-
-                    let sJoinOn = '';
-                    if (_.isString(item.on)) {
-                        sJoinOn = item.on;
-
-                        if (_.get(active, 'table') && _.get(active, 'as')) {
-                            sJoinOn = _.replace(sJoinOn, `\`${active.table}\`.`, `\`${active.as}\`.`);
-                        }
-
-                        if (!_.get(item, 'query')) {
-                            if (_.get(item, 'table') && _.get(item, 'as')) {
-                                sJoinOn = _.replace(sJoinOn, `\`${item.table}\`.`, `\`${item.as}\`.`);
-                            }
-                        }
-                    } else if (_.size(item.on) > 0) {
-                        const joinActive = {
-                            ...active,
-                            table: item.table,
-                            as: item.as
-                        };
-                        sJoinOn = this.getWhereBuild(joinActive, item.on, 'AND', false);
-                        if (sJoinOn === null || !sJoinOn) {
-                            return null;
-                        }
-                    } else {
-                        this.addErrorLogs('join on : not support');
-                        return null;
-                    }
-
-                    sJoin += ` ON ${sJoinOn} `;
                 }
             }
         }
+        return joins;
+    }
 
+    private getJoinQuery(active: IActivePrivate, clear = false) {
+        if (!active.joins || active.joins.length === 0) {
+            return '';
+        }
+        let sJoin = '';
+        for (const join of active.joins) {
+            if (clear && join.clear) {
+                continue;
+            }
+            sJoin += ` ${join.type === 'OUTER' ? 'FULL':''} ${join.type} JOIN `;
+
+            if (join.query) {
+                sJoin += ` ( ${join.query} ) `;
+                // 쿼리 조인은 as 필수
+                if (!join.as) {
+                    this.addErrorLogs('join query need as');
+                    return null;
+                }
+            } else if (join.table) {
+                sJoin += ` \`${join.table}\` `;
+            } else {
+                this.addErrorLogs('join no table');
+                return null;
+            }
+
+            if (join.as) {
+                sJoin += ` AS ${join.as}`;
+            }
+
+            if (!join.on) {
+                this.addErrorLogs('join no on');
+                return null;
+            }
+
+            // 필드명만 있는경우는 PK로 비교
+            if (_.isSymbol(join.on) || (_.isString(join.on) && !this.pregMatch(join.on, /[=><]+/))) {
+                if (_.isSymbol(join.on)) {
+                    join.on = join.on.description;
+                }
+                const sPK = this.getPKField(active, join.table);
+                if (!sPK) {
+                    this.addErrorLogs(`join on PK : ${join.table}`);
+                    return null;
+                }
+                join.on = {
+                    [sPK]: Symbol(join.on)
+                };
+            }
+
+            let sJoinOn = '';
+            if (_.isString(join.on)) {
+                sJoinOn = join.on;
+
+                if (active.table && active.as) {
+                    sJoinOn = _.replace(sJoinOn, `\`${active.table}\`.`, `\`${active.as}\`.`);
+                }
+
+                if (!join.query) {
+                    if (join.table && join.as) {
+                        sJoinOn = _.replace(sJoinOn, `\`${join.table}\`.`, `\`${join.as}\`.`);
+                    }
+                }
+            } else if (_.size(join.on) > 0) {
+                const joinActive = {
+                    ...active,
+                    table: join.table,
+                    as: join.as
+                };
+                sJoinOn = this.getWhereBuild(joinActive, join.on, 'AND', false);
+                if (sJoinOn === null || !sJoinOn) {
+                    return null;
+                }
+            } else {
+                this.addErrorLogs('join on : not support');
+                return null;
+            }
+
+            sJoin += ` ON ${sJoinOn} `;
+        }
         return sJoin;
     }
 
@@ -1318,42 +1370,63 @@ class DBQB {
 
     private clearJoinActive(_active: IActivePrivate, info: IActiveInfo) {
         const active = { ..._active };
-        for (const key of ['leftJoin']) {
-            if (_.get(active, key) && _.size(active[key]) > 0) {
-                const _join = [];
-                for (const item of active[key]) {
-                    let isUse = false;
-                    if (_.get(info, 'where')) {
-                        if (
-                            info.where.indexOf(`${item.table}.`) !== -1 ||
-                            info.where.indexOf(`\`${item.table}\`.`) !== -1 ||
-                            (
-                                _.get(item, 'as') &&
-                                (
-                                    info.where.indexOf(`${item.as}.`) !== -1 ||
-                                    info.where.indexOf(`\`${item.as}\`.`) !== -1
-                                )
-                            )
-                        ) {
-                            isUse = true;
-                        }
-                    }
-                    if (_.get(item, 'query')) {
-                        isUse = true;
-                    }
-                    if (item.clear === false) {
-                        isUse = true;
-                    }
 
-                    if (isUse) {
-                        _join.push(item);
-                    }
+        if (!active.joins || active.joins.length === 0) {
+            return active;
+        }
+
+        for (const join of active.joins) {
+            // 설정값 우선
+            if (join.clear === false || join.clear === true) {
+                continue;
+            }
+
+            // 쿼리는 변수가 많아서 예외 처리
+            if (join.query) {
+                join.clear = false;
+                continue;
+            }
+
+            // where 조건 있는지 체크
+            if (info.where) {
+                if (
+                    info.where.indexOf(`${join.table}.`) !== -1 ||
+                    info.where.indexOf(`\`${join.table}\`.`) !== -1 ||
+                    (
+                        _.get(join, 'as') &&
+                        (
+                            info.where.indexOf(`${join.as}.`) !== -1 ||
+                            info.where.indexOf(`\`${join.as}\`.`) !== -1
+                        )
+                    )
+                ) {
+                    join.clear = false;
+                    continue;
                 }
+            }
 
-                if (_.size(_join) === 0) {
-                    _.unset(active, key);
-                } else {
-                    active[key] = _join;
+            // left 조인만 체크
+            if (join.type !== 'LEFT') {
+                join.clear = false;
+                continue;
+            }
+
+            join.clear = true;
+        }
+
+        // 부모 테이블이 지워지면 안되는경우 예외처리
+        for (const join of active.joins) {
+            if (join.clear === false) {
+                for (const join2 of active.joins) {
+                    if (join2.path === join.path) {
+                        continue;
+                    }
+                    if (!join2.clear) {
+                        continue;
+                    }
+                    if (join.path.indexOf(join2.path) !== -1) {
+                        join2.clear = false;
+                    }
                 }
             }
         }
