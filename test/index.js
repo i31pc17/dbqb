@@ -5,7 +5,8 @@ const dbqb = new DBQB({
         return [
             'user',
             'profile',
-            'board'
+            'board',
+            'bank',
         ];
     },
     getFields: (table) => {
@@ -36,6 +37,17 @@ const dbqb = new DBQB({
                     { Field: 'user_idx', Type: 'int', Null: 'NO', Key: '', Default: '', Extra: '' },
                     { Field: 'title', Type: 'varchar(32)', Null: 'NO', Key: '', Default: '', Extra: '' },
                     { Field: 'content', Type: 'text', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'create_at', Type: 'datetime', Null: 'NO', Key: '', Default: '', Extra: '' },
+                ]
+                break;
+            case 'bank':
+                return [
+                    { Field: 'idx', Type: 'int', Null: 'NO', Key: 'PRI', Default: '', Extra: 'auto_increment' },
+                    { Field: 'user_idx', Type: 'int', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'bank_code', Type: 'varchar(10)', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'bank_name', Type: 'varchar(50)', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'bank_account_num', Type: 'varchar(50)', Null: 'NO', Key: '', Default: '', Extra: '' },
+                    { Field: 'bank_account_name', Type: 'varchar(50)', Null: 'NO', Key: '', Default: '', Extra: '' },
                     { Field: 'create_at', Type: 'datetime', Null: 'NO', Key: '', Default: '', Extra: '' },
                 ]
                 break;
@@ -270,7 +282,7 @@ const innerJoinQuery = await dbqb.selectQuery({
     fieldAs: {
         'profile.nick': 'profile_name'
     },
-    leftJoin: [
+    innerJoin: [
         {
             table: 'profile',
             on: '`profile`.user_idx = `user`.idx'
@@ -345,6 +357,64 @@ const subQuery = await dbqb.selectQuery({
     limit: 1
 });
 console.log(`subQuery : ${subQuery}`);
+
+// count query join
+const countJoinQuery = await dbqb.countQuery({
+    table: 'board',
+    leftJoin: [
+        {
+            table: 'user',
+            on: 'board.user_idx',
+            innerJoin: [
+                {
+                    table: 'profile',
+                    on: {
+                        user_idx: Symbol('user.idx')
+                    }
+                }
+            ],
+            leftJoin: [
+                {
+                    table: 'bank',
+                    on: {
+                        user_idx: Symbol('board.user_idx')
+                    }
+                }
+            ]
+        }
+    ],
+});
+console.log(`countJoinQuery : ${countJoinQuery}`);
+
+// count query join
+const countJoinQuery2 = await dbqb.countQuery({
+    table: 'board',
+    joins: [
+        {
+            table: 'user',
+            on: 'board.user_idx',
+            joins: [
+                {
+                    table: 'profile',
+                    on: {
+                        user_idx: Symbol('user.idx')
+                    },
+                    type: 'inner'
+                },
+            ]
+        },
+        {
+            table: 'bank',
+            on: {
+                user_idx: Symbol('board.user_idx')
+            }
+        }
+    ],
+    where: {
+        'profile.nick': 'nickname'
+    }
+});
+console.log(`countJoinQuery2 : ${countJoinQuery2}`);
 
 if (dbqb.getErrorLogs().length > 0) {
     console.error('error', dbqb.getErrorLogs());

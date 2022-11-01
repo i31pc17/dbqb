@@ -1,4 +1,4 @@
-import { defineBuildConfig } from 'unbuild'
+import { defineBuildConfig } from 'unbuild';
 
 export default defineBuildConfig({
     declaration: true,
@@ -8,4 +8,4 @@ export default defineBuildConfig({
     rollup: {
         emitCJS: true
     }
-})
+});
