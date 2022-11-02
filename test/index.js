@@ -370,7 +370,7 @@ const countJoinQuery = await dbqb.countQuery({
                     table: 'profile',
                     on: {
                         user_idx: Symbol('user.idx')
-                    }
+                    },
                 }
             ],
             leftJoin: [
@@ -399,7 +399,6 @@ const countJoinQuery2 = await dbqb.countQuery({
                     on: {
                         user_idx: Symbol('user.idx')
                     },
-                    type: 'inner'
                 },
             ]
         },
@@ -415,6 +414,98 @@ const countJoinQuery2 = await dbqb.countQuery({
     }
 });
 console.log(`countJoinQuery2 : ${countJoinQuery2}`);
+
+const countJoinQuery3 = await dbqb.countQuery({
+    table: 'board',
+    joins: [
+        {
+            table: 'user',
+            on: 'board.user_idx',
+            joins: [
+                {
+                    table: 'profile',
+                    on: {
+                        user_idx: Symbol('user.idx')
+                    },
+                    type: 'inner'
+                },
+                {
+                    table: 'bank',
+                    on: {
+                        user_idx: Symbol('board.user_idx')
+                    }
+                }
+            ],
+        }
+    ],
+    where: {
+        'user.auth_yn': 'Y'
+    }
+});
+console.log(`countJoinQuery3 : ${countJoinQuery3}`);
+
+const countJoinQuery4 = await dbqb.countQuery({
+    table: 'board',
+    joins: [
+        {
+            table: 'user',
+            on: 'board.user_idx',
+            joins: [
+                {
+                    table: 'profile',
+                    on: {
+                        user_idx: Symbol('user.idx')
+                    },
+                    type: 'inner'
+                },
+                {
+                    table: 'bank',
+                    on: {
+                        user_idx: Symbol('board.user_idx')
+                    },
+                }
+            ],
+            clear: false
+        }
+    ],
+    where: {
+        'board.user_idx': 10
+    }
+});
+console.log(`countJoinQuery4 : ${countJoinQuery4}`);
+
+const countJoinQuery5 = await dbqb.countQuery({
+    table: 'board',
+    joins: [
+        {
+            table: 'user',
+            on: 'board.user_idx',
+            joins: [
+                {
+                    table: 'profile',
+                    on: {
+                        user_idx: Symbol('user.idx')
+                    },
+                    type: 'inner'
+                },
+                {
+                    table: 'bank',
+                    on: {
+                        user_idx: Symbol('board.user_idx')
+                    },
+                }
+            ],
+            clear: false
+        }
+    ],
+    where: {
+        'content %': 'test'
+    },
+    groupBy: [
+      'user_idx'
+    ]
+});
+console.log(`countJoinQuery5 : ${countJoinQuery5}`);
 
 if (dbqb.getErrorLogs().length > 0) {
     console.error('error', dbqb.getErrorLogs());

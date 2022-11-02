@@ -1389,26 +1389,34 @@ class DBQB {
 
             // where 조건 있는지 체크
             if (info.where) {
-                if (
-                    info.where.indexOf(`${join.table}.`) !== -1 ||
-                    info.where.indexOf(`\`${join.table}\`.`) !== -1 ||
-                    (
-                        _.get(join, 'as') &&
-                        (
-                            info.where.indexOf(`${join.as}.`) !== -1 ||
-                            info.where.indexOf(`\`${join.as}\`.`) !== -1
-                        )
-                    )
-                ) {
+                const chkExp = new RegExp(`\\\`*(${join.table}${join.as ? `|${join.as}` : ''})\\\`*\\\.`);
+                if (chkExp.test(info.where)) {
                     join.clear = false;
                     continue;
                 }
             }
 
-            // left 조인만 체크
             if (join.type !== 'LEFT') {
-                join.clear = false;
-                continue;
+                // 최상단 조인은 left 조인만 체크
+                if (join.path.indexOf('.') === -1) {
+                    join.clear = false;
+                    continue;
+                } else {
+                    for (const join2 of active.joins) {
+                        if (join2.path === join.path) {
+                            break;
+                        }
+
+                        // 부모 테이블이 있을 경우 자식 테이블도 유지
+                        if (join.path.indexOf(join2.path) !== -1 && join2.clear === false) {
+                            join.clear = false;
+                            break;
+                        }
+                    }
+                    if (join.clear === false) {
+                        continue;
+                    }
+                }
             }
 
             join.clear = true;
