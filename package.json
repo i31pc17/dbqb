@@ -23,7 +23,6 @@
   "devDependencies": {
     "@types/lodash": "^4.14.182",
     "sequelize": "^6.25.5",
-    "sequelize-typescript": "^2.1.5",
     "unbuild": "^0.9.4"
   },
   "dependencies": {
