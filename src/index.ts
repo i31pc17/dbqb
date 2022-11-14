@@ -1,7 +1,7 @@
 import _ from 'lodash';
 
 export interface IActive extends IActiveJoins{
-    table: string;
+    table?: string;
     as?: string;
     field?: string[];
     fieldAs?: Record<string, string>;
