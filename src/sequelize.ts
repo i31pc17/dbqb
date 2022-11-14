@@ -100,11 +100,12 @@ export const selectMap = (index: any, active: IActiveSelect, type: string, func:
 
 class SequelizeDB {
     private sequelize: Sequelize;
-    private dbqb = new DBQB(this);
+    private dbqb: DBQB;
     private fn: (item: any, key: string) => void | null = null;
 
     constructor(sequelize: Sequelize) {
         this.sequelize = sequelize;
+        this.dbqb = new DBQB(this);
     }
 
     public async getTables() {
@@ -114,7 +115,10 @@ class SequelizeDB {
     }
 
     public async getFields(table: string) {
-        return <IFieldItem[]>await this.queryAll(`SHOW FIELDS FROM ${table}`);
+        return <IFieldItem[]>await this.sequelize.query(`SHOW FIELDS FROM ${table}`, {
+            type: QueryTypes.SELECT,
+            raw: true
+        });
     }
 
     public validate(fn: (item: any, key: string) => void) {
@@ -147,7 +151,7 @@ class SequelizeDB {
             });
         }
 
-        return index[0];
+        return row;
     }
 
     public async queryAll(query: string, type = '', key = '', t: Transaction | null = null) {

@@ -1,6 +1,6 @@
 {
   "name": "dbqb",
-  "version": "1.0.19",
+  "version": "1.0.22",
   "description": "mysql query builder",
   "type": "module",
   "exports": {
@@ -19,7 +19,8 @@
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "sequelize.d.ts"
   ],
   "scripts": {
     "build": "unbuild",
