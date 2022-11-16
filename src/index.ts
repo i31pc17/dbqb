@@ -4,10 +4,10 @@ export interface IActive extends IActiveJoins{
     table?: string;
     as?: string;
     field?: string[];
-    fieldAs?: Record<string, string>;
+    fieldAs?: Record<string | symbol, string>;
     clearField?: {
         field?: string[];
-        fieldAs?: Record<string, string>;
+        fieldAs?: Record<string | symbol, string>;
     };
     useIndex?: string;
     where?: any;
@@ -228,8 +228,11 @@ class DBQB {
         }
 
         if (_.get(active, 'fieldAs') && _.size(active.fieldAs) > 0) {
-            for (const key of _.keys(active.fieldAs)) {
-                const val = active.fieldAs[key];
+            const keys = this.getKeys(active.fieldAs);
+            for (const _key of keys) {
+                const key = _.isSymbol(_key) ? _key.description : _key;
+                const val = active.fieldAs[_key];
+
                 const aTFInfo = this.getTableField(active, key);
                 if (aTFInfo === null) {
                     return null;

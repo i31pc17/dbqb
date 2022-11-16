@@ -231,7 +231,9 @@ const fieldQuery = await dbqb.selectQuery({
     field: ['*', 'email', 'password'],
     fieldAs: {
         name: 'user_name',
-        'SUM(login_count)': 'idx_sum'
+        'SUM(login_count)': 'idx_sum',
+        [Symbol('name')]: 'user_name2',
+        [Symbol('user.name')]: 'user_name3',
     }
 });
 console.log(`fieldQuery : ${fieldQuery}`);
@@ -239,7 +241,10 @@ console.log(`fieldQuery : ${fieldQuery}`);
 const fieldQuery2 = await dbqb.selectQuery({
     table: 'user',
     fieldAs: {
-        '!COUNT(IF(auth_yn = "Y", 1, NULL)': 'auth_count'
+        '!COUNT(IF(auth_yn = "Y", 1, NULL)': 'auth_count',
+        '!0': 'count',
+        [Symbol('!7')]: 'count2',
+        [Symbol('!"test"')]: 'message',
     }
 });
 console.log(`fieldQuery2 : ${fieldQuery2}`);
