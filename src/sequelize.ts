@@ -99,7 +99,7 @@ export const selectMap = (index: any, active: IActiveSelect, type: string, func:
 }
 
 class SequelizeDB {
-    private sequelize: Sequelize;
+    public readonly sequelize: Sequelize;
     private dbqb: DBQB;
     private fn: (item: any, key: string) => void | null = null;
 
@@ -449,6 +449,11 @@ class SequelizeDB {
             result: true
         };
     }
+
+    public getErrorLogs() {
+        return this.dbqb.getErrorLogs();
+    }
 }
+
 
 export { SequelizeDB }
