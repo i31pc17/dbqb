@@ -15,7 +15,7 @@ export interface ISelectPageResult<T extends object> {
     page: ISelectPage;
 }
 
-export type TSelectFn<T> = (item: T, active: IActive) => Promise<any>;
+export type TSelectFn<T> = (item: T, active: IActive) => Promise<void> | void;
 
 export interface ISelectActive<T> extends IActive {
     func?: TSelectFn<T>;
