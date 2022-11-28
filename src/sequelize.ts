@@ -21,7 +21,7 @@ export interface ISelectActive<T> extends IActive {
     func?: TSelectFn<T>;
 }
 
-export const selectMap = <T, TResult>(index: any, active: IActive, type: string, func: (item: T) => TResult): TResult[] => {
+export const selectMap = <T, TResult>(index: any, type: string, func: (item: T) => TResult): TResult[] => {
     let result: any = [];
     if (type === 'page') {
         if (typeof func === 'function' && index.page.total > 0 && index.contents && index.contents.length > 0) {
