@@ -15,10 +15,10 @@ export interface ISelectPageResult<T extends object> {
     page: ISelectPage;
 }
 
-export type TSelectFn<T, TResult> = (item: T, active: IActive) => TResult;
+export type TSelectFn<T> = (item: T, active: IActive) => Promise<any>;
 
-export interface ISelectActive<T, TResult> extends IActive {
-    func?: TSelectFn<T, TResult>;
+export interface ISelectActive<T> extends IActive {
+    func?: TSelectFn<T>;
 }
 
 export const selectMap = <T, TResult>(index: any, active: IActive, type: string, func: (item: T) => TResult): TResult[] => {
@@ -239,7 +239,7 @@ class SequelizeDB {
         return aReturn;
     }
 
-    public async select<T extends object, TResult>(_active: ISelectActive<T, TResult>, type: 'row' | 'all' | 'page' = 'page', func: TSelectFn<T, TResult> | null = null, t: Transaction | null = null): Promise<T | T[] | ISelectPageResult<T> | null> {
+    public async select<T extends object>(_active: ISelectActive<T>, type: 'row' | 'all' | 'page' = 'page', func: TSelectFn<T> | null = null, t: Transaction | null = null): Promise<T | T[] | ISelectPageResult<T> | null> {
         const active = { ..._active };
         if (_.get(active, 'func')) {
             func = active.func;
