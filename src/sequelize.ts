@@ -1,4 +1,4 @@
-import {Sequelize, QueryTypes, Transaction} from 'sequelize';
+import {QueryOptions, QueryTypes, Sequelize, Transaction, QueryOptionsWithType} from 'sequelize';
 import _ from 'lodash';
 import DBQB, {IActive, IFieldItem} from "./index";
 
@@ -10,12 +10,14 @@ export interface ISelectPage {
     lastPage: number;
 }
 
-export interface ISelectPageResult<T extends object> {
+export interface ISelectPageResult<T = any> {
     contents: T[] | null;
     page: ISelectPage;
 }
 
 export type TSelectFn<T> = (item: T, active: IActive) => Promise<void> | void;
+
+export type TQueryOptions = Transaction | QueryOptions | null;
 
 export interface ISelectActive<T> extends IActive {
     func?: TSelectFn<T>;
@@ -79,12 +81,25 @@ class SequelizeDB {
         return this.dbqb.countQuery(active);
     }
 
-    public async queryRow<T extends object>(query: string, t: Transaction | null = null): Promise<T | null> {
-        const index: T[] = await this.sequelize.query(query, {
-            type: QueryTypes.SELECT,
-            raw: true,
-            transaction: t
-        });
+    private queryOptions(t: TQueryOptions = null) {
+        let options: QueryOptions = {
+            raw: true
+        };
+        if (t instanceof Transaction) {
+            options.transaction = t;
+        } else if (t) {
+            options = {
+                ...options,
+                ...t
+            }
+        }
+        return options;
+    }
+
+    public async queryRow<T = any>(query: string, t: TQueryOptions = null): Promise<T | null> {
+        const selectOption: QueryOptionsWithType<QueryTypes.SELECT> = this.queryOptions(t) as any;
+        selectOption.type = QueryTypes.SELECT;
+        const index: T[] = await this.sequelize.query<any>(query, selectOption);
 
         if (_.size(index) === 0) {
             return null;
@@ -92,7 +107,7 @@ class SequelizeDB {
         const row = index[0];
 
         if (this.fn) {
-            _.forEach(row, (val: any, key: string) => {
+            _.forEach<any>(row, (val: any, key: string) => {
                 row[key] = this.fn(val, key);
             });
         }
@@ -100,12 +115,10 @@ class SequelizeDB {
         return row;
     }
 
-    public async queryAll<T extends object>(query: string, t: Transaction | null = null): Promise<T[] | null> {
-        const index: T[] = await this.sequelize.query(query, {
-            type: QueryTypes.SELECT,
-            raw: true,
-            transaction: t
-        });
+    public async queryAll<T = any>(query: string, t: TQueryOptions = null): Promise<T[] | null> {
+        const selectOption: QueryOptionsWithType<QueryTypes.SELECT> = this.queryOptions(t) as any;
+        selectOption.type = QueryTypes.SELECT;
+        const index: T[] =  await this.sequelize.query<any>(query, selectOption);
 
         if (_.size(index) === 0) {
             return null;
@@ -113,7 +126,7 @@ class SequelizeDB {
 
         if (this.fn) {
             _.forEach(index, (items, idx: number) => {
-                _.forEach(items, (item: any, key: string) => {
+                _.forEach<any>(items, (item: any, key: string) => {
                     index[idx][key] = this.fn(item, key);
                 });
             });
@@ -121,12 +134,10 @@ class SequelizeDB {
         return index;
     }
 
-    public async queryOne<T>(query: string, t: Transaction | null = null): Promise<T | null> {
-        const index = await this.sequelize.query(query, {
-            type: QueryTypes.SELECT,
-            raw: true,
-            transaction: t
-        });
+    public async queryOne<T = any>(query: string, t: TQueryOptions = null): Promise<T | null> {
+        const selectOption: QueryOptionsWithType<QueryTypes.SELECT> = this.queryOptions(t) as any;
+        selectOption.type = QueryTypes.SELECT;
+        const index: T[] =  await this.sequelize.query<any>(query, selectOption);
 
         if (_.size(index) === 0) {
             return null;
@@ -137,7 +148,7 @@ class SequelizeDB {
         return index[0][keys[0]] as T;
     }
 
-    public async selectRow<T extends object>(active: IActive, t: Transaction | null = null): Promise<T | null> {
+    public async selectRow<T = any>(active: IActive, t: TQueryOptions = null): Promise<T | null> {
         active.limit = 1;
         const sQuery = await this.dbqb.selectQuery(active);
         if (!sQuery) {
@@ -146,7 +157,7 @@ class SequelizeDB {
         return this.queryRow<T>(sQuery, t);
     }
 
-    public async selectAll<T extends object>(active: IActive, t: Transaction | null = null): Promise<T[] | null> {
+    public async selectAll<T = any>(active: IActive, t: TQueryOptions = null): Promise<T[] | null> {
         if (!_.get(active, 'nolimit')) {
             _.set(active, 'offset', _.get(active, 'offset', 0));
             _.set(active, 'limit', _.get(active, 'limit', 1));
@@ -158,7 +169,7 @@ class SequelizeDB {
         return this.queryAll<T>(sQuery, t);
     }
 
-    public async selectOne<T>(active: IActive, t: Transaction | null = null): Promise<T | null> {
+    public async selectOne<T = any>(active: IActive, t: TQueryOptions = null): Promise<T | null> {
         active.limit = 1;
         const sQuery = await this.dbqb.selectQuery(active);
         if (!sQuery) {
@@ -167,7 +178,7 @@ class SequelizeDB {
         return this.queryOne<T>(sQuery, t);
     }
 
-    public async selectPage<T extends object>(active: IActive & {query?: string, queryCnt?: string}, t: Transaction | null = null) {
+    public async selectPage<T = any>(active: IActive & {query?: string, queryCnt?: string}, t: TQueryOptions = null) {
         if (!_.get(active, 'nolimit')) {
             _.set(active, 'offset', _.get(active, 'offset', 0));
             _.set(active, 'limit', _.get(active, 'limit', 20));
@@ -239,7 +250,7 @@ class SequelizeDB {
         return aReturn;
     }
 
-    public async select<T extends object>(_active: ISelectActive<T>, type: 'row' | 'all' | 'page' = 'page', func: TSelectFn<T> | null = null, t: Transaction | null = null): Promise<T | T[] | ISelectPageResult<T> | null> {
+    public async select<T = any>(_active: ISelectActive<T>, type: 'row' | 'all' | 'page' = 'page', func: TSelectFn<T> | null = null, t: TQueryOptions = null): Promise<T | T[] | ISelectPageResult<T> | null> {
         const active = { ..._active };
         if (_.get(active, 'func')) {
             func = active.func;
@@ -276,17 +287,16 @@ class SequelizeDB {
         return index;
     }
 
-    public async insert(active: IActive, t: Transaction | null = null) {
+    public async insert(active: IActive, t: TQueryOptions = null) {
         const query = await this.dbqb.insertQuery(active);
         if (query === null || !query) {
             throw new Error('query builder error');
         }
 
-        const index = await this.sequelize.query(query, {
-            type: QueryTypes.INSERT,
-            raw: true,
-            transaction: t
-        });
+        const insertOption: QueryOptionsWithType<QueryTypes.INSERT> = this.queryOptions(t) as any;
+        insertOption.type = QueryTypes.INSERT;
+
+        const index = await this.sequelize.query(query, insertOption);
 
         return {
             result: true,
@@ -294,17 +304,15 @@ class SequelizeDB {
         };
     }
 
-    public async insertAll(active: IActive, t: Transaction | null = null) {
+    public async insertAll(active: IActive, t: TQueryOptions = null) {
         const query = await this.dbqb.insertAllQuery(active);
         if (query === null || !query) {
             throw new Error('query builder error');
         }
 
-        const index = await this.sequelize.query(query, {
-            type: QueryTypes.INSERT,
-            raw: true,
-            transaction: t
-        });
+        const insertOption: QueryOptionsWithType<QueryTypes.INSERT> = this.queryOptions(t) as any;
+        insertOption.type = QueryTypes.INSERT;
+        const index = await this.sequelize.query(query, insertOption);
 
         let priKey: string | null = null;
         const _tField = await this.getFields(active.table);
@@ -341,17 +349,15 @@ class SequelizeDB {
         };
     }
 
-    public async update(active: IActive, t: Transaction | null = null) {
+    public async update(active: IActive, t: TQueryOptions = null) {
         const query = await this.dbqb.updateQuery(active);
         if (query === null || !query) {
             throw new Error('query builder error');
         }
 
-        const index = await this.sequelize.query(query, {
-            type: QueryTypes.UPDATE,
-            raw: true,
-            transaction: t
-        });
+        const updateOption: QueryOptionsWithType<QueryTypes.UPDATE> = this.queryOptions(t) as any;
+        updateOption.type = QueryTypes.UPDATE;
+        const index = await this.sequelize.query(query, updateOption);
 
         return {
             result: true,
@@ -359,17 +365,15 @@ class SequelizeDB {
         };
     }
 
-    public async insertUpdate(active: IActive, t: Transaction | null = null) {
+    public async insertUpdate(active: IActive, t: TQueryOptions = null) {
         const query = await this.dbqb.insertUpdateQuery(active);
         if (query === null || !query) {
             throw new Error('query builder error');
         }
 
-        await this.sequelize.query(query, {
-            type: QueryTypes.INSERT,
-            raw: true,
-            transaction: t
-        });
+        const insertOption: QueryOptionsWithType<QueryTypes.INSERT> = this.queryOptions(t) as any;
+        insertOption.type = QueryTypes.INSERT;
+        await this.sequelize.query(query, insertOption);
 
         return {
             result: true
@@ -382,11 +386,9 @@ class SequelizeDB {
             throw new Error('query builder error');
         }
 
-        await this.sequelize.query(query, {
-            type: QueryTypes.DELETE,
-            raw: true,
-            transaction: t
-        });
+        const deleteOption: QueryOptionsWithType<QueryTypes.DELETE> = this.queryOptions(t) as any;
+        deleteOption.type = QueryTypes.DELETE;
+        await this.sequelize.query(query, deleteOption);
 
         return {
             result: true
