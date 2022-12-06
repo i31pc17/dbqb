@@ -96,13 +96,13 @@ class SequelizeDB {
         return options;
     }
 
-    public async transaction(t: TQueryOptions = null) {
+    public async transaction(t: TQueryOptions = null): Promise<[Transaction, boolean]> {
         if (t instanceof Transaction) {
-            return t;
+            return [t, false];
         } else if (t && t.transaction) {
-            return t.transaction;
+            return [t.transaction, false];
         } else {
-            return (await this.sequelize.transaction());
+            return [(await this.sequelize.transaction()), true];
         }
     }
 
