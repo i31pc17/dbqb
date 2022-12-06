@@ -96,14 +96,38 @@ class SequelizeDB {
         return options;
     }
 
-    public async transaction(t: TQueryOptions = null): Promise<[Transaction, boolean]> {
+    public async transaction(t: TQueryOptions = null): Promise<[Transaction, TQueryOptions, boolean]> {
         if (t instanceof Transaction) {
-            return [t, false];
-        } else if (t && t.transaction) {
-            return [t.transaction, false];
+            return [t, t, false];
+        } else if (t) {
+            const opt: QueryOptions = {
+                ...t,
+            };
+            let gen = false;
+            if (!opt.transaction) {
+                opt.transaction = await this.sequelize.transaction();
+                gen = true;
+            }
+            return [opt.transaction, opt, gen];
         } else {
-            return [(await this.sequelize.transaction()), true];
+            const trans = await this.sequelize.transaction();
+            return [trans, trans, true];
         }
+    }
+
+    public setQueryOptions(t: TQueryOptions, qo: QueryOptions): TQueryOptions {
+        if (t instanceof Transaction) {
+            return {
+                ...qo,
+                transaction: t
+            }
+        } else if (t) {
+            return {
+                ...t,
+                ...qo
+            };
+        }
+        return null;
     }
 
     public async queryRow<T = any>(query: string, t: TQueryOptions = null): Promise<T | null> {
