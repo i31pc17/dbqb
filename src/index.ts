@@ -41,7 +41,7 @@ export interface IDB {
 interface IActivePrivate extends IActive {
     tableList: string[];
     tableAs: Record<string, string[]>;
-    asTable: string[];
+    asTable: Record<string, string>;
     tableField: Record<string, Record<string, IFieldItem>>;
 }
 
@@ -139,7 +139,7 @@ class DBQB {
 
     private async initQuery(active: IActivePrivate) {
         // 테이블 체크
-        if (!_.get(active, 'table')) {
+        if (!active.table) {
             this.addErrorLogs('no table');
             return false;
         }
@@ -147,8 +147,8 @@ class DBQB {
         // AS 변경용 미리 구하기
         active.tableList = [active.table];
         active.tableAs = {};
-        active.asTable = [];
-        if (_.get(active, 'as')) {
+        active.asTable = {};
+        if (active.as) {
             active.asTable[active.as] = active.table;
             active.tableAs[active.table] = [active.as];
         }
@@ -173,7 +173,7 @@ class DBQB {
         if (_.size(active.parentTables) > 0) {
             _.forEach(active.parentTables, (parentTable) => {
                 active.tableList.push(parentTable.table);
-                if (_.get(parentTable, 'as')) {
+                if (parentTable.as) {
                     active.asTable[parentTable.as] = parentTable.table;
                     if (!active.tableAs[parentTable.table]) {
                         active.tableAs[parentTable.table] = [];
@@ -184,9 +184,13 @@ class DBQB {
         }
 
         // 필드 예외처리
-        if (_.get(active, 'clearField.field') || _.get(active, 'clearField.fieldAs')) {
-            active.field = active.clearField.field;
-            active.fieldAs = active.clearField.fieldAs;
+        if (active.clearField) {
+            if (active.clearField.field) {
+                active.field = active.clearField.field;
+            }
+            if (active.clearField.fieldAs) {
+                active.fieldAs = active.clearField.fieldAs;
+            }
         }
 
         // 전체 테이블 체크
@@ -217,7 +221,7 @@ class DBQB {
         }
 
         let sField = '';
-        if (_.get(active, 'field') && _.size(active.field) > 0) {
+        if (active.field && _.size(active.field) > 0) {
             for (const val of active.field) {
                 const aTFInfo = this.getTableField(active, val);
                 if (aTFInfo === null) {
@@ -227,11 +231,15 @@ class DBQB {
             }
         }
 
-        if (_.get(active, 'fieldAs') && _.size(active.fieldAs) > 0) {
+        if (active.fieldAs && _.size(active.fieldAs) > 0) {
             const keys = this.getKeys(active.fieldAs);
             for (const _key of keys) {
                 const key = _.isSymbol(_key) ? _key.description : _key;
                 const val = active.fieldAs[_key];
+                if (!key) {
+                    this.addErrorLogs(`not key (symbol description)`);
+                    return null;
+                }
 
                 const aTFInfo = this.getTableField(active, key);
                 if (aTFInfo === null) {
@@ -305,7 +313,12 @@ class DBQB {
         if (this.pregMatch(field, /[a-z]+\([^)]+\)/i)) {
             returns.func = true;
             fnField = field;
-            fnField2 = this.checkFieldFn(field);
+            const chkField = this.checkFieldFn(field);
+            if (!chkField) {
+                this.addErrorLogs(`fn field : ${field}`);
+                return null;
+            }
+            fnField2 = chkField;
             field = fnField2;
 
             // COUNT(1) / COUNT(*) 예외처리
@@ -421,19 +434,20 @@ class DBQB {
         const info: IActiveInfo = {};
 
         // field
-        info.field = this.getFieldQuery(active);
-        if (info.field === null || !info.field) {
+        const sField = this.getFieldQuery(active);
+        if (sField === null || !sField) {
             return null;
         }
+        info.field = sField;
 
         // from
         info.table = `\`${active.table}\``;
-        if (_.get(active, 'as')) {
+        if (active.as) {
             info.table += ` AS \`${active.as}\``;
         }
 
         // index
-        if (_.get(active, 'useIndex')) {
+        if (active.useIndex) {
             info.useIndex = ` USE INDEX (${active.useIndex}) `;
         }
 
@@ -465,8 +479,8 @@ class DBQB {
         }
 
         // having
-        if ((_.get(active, 'having') && this.getKeys(active.having).length > 0) ||
-            (_.get(active, 'havingOr') && this.getKeys(active.havingOr).length > 0)) {
+        if ((active.having && this.getKeys(active.having).length > 0) ||
+            (active.havingOr && this.getKeys(active.havingOr).length > 0)) {
             const hActive = { ...active };
             hActive.where = active.having;
             hActive.whereOr = active.havingOr;
@@ -508,8 +522,8 @@ class DBQB {
         }
 
         // having 예외처리
-        if ((_.get(active, 'having') && this.getKeys(active.having).length > 0) ||
-            (_.get(active, 'havingOr') && this.getKeys(active.havingOr).length > 0)) {
+        if ((active.having && this.getKeys(active.having).length > 0) ||
+            (active.havingOr && this.getKeys(active.havingOr).length > 0)) {
             _.unset(active, 'offset');
             _.unset(active, 'limit');
             let sQuery = await this.selectQuery(active);
@@ -525,19 +539,20 @@ class DBQB {
         const info: IActiveInfo = {};
 
         // count
-        info.count = this.getCountQuery(active);
-        if (info.count === null || !info.count) {
+        const sCount = this.getCountQuery(active);
+        if (sCount === null || !sCount) {
             return null;
         }
+        info.count = sCount;
 
         // table
         info.table = `\`${active.table}\` `;
-        if (_.get(active, 'as')) {
+        if (active.as) {
             info.table += ` AS \`${active.as}\``;
         }
 
         // index
-        if (_.get(active, 'useIndex')) {
+        if (active.useIndex) {
             info.useIndex = ` USE INDEX (${active.useIndex})`;
         }
 
@@ -578,10 +593,11 @@ class DBQB {
         info.table = `\`${active.table}\``;
 
         // data
-        info.data = this.getDataQuery(active);
-        if (info.data === null || !info.data) {
+        const sData = this.getDataQuery(active);
+        if (sData === null || !sData) {
             return null;
         }
+        info.data = sData;
 
         return this.makeQuery(query, info);
     }
@@ -591,8 +607,11 @@ class DBQB {
         if (!(await this.initQuery(active))) {
             return null;
         }
+        if (!active.table) {
+            return null;
+        }
 
-        if (_.get(active, 'field')) {
+        if (active.field) {
             if (!(await this.checkField(active.table, active.field, false))) {
                 this.addErrorLogs('no field');
                 return null;
@@ -613,10 +632,11 @@ class DBQB {
         info.field = `(\`${_.join(active.field, '`,`')}\`)`;
 
         // values
-        info.values = this.getDataListQuery(active);
-        if (info.values === null || !info.values) {
+        const sValues = this.getDataListQuery(active);
+        if (sValues === null || !sValues) {
             return null;
         }
+        info.values = sValues;
 
         return this.makeQuery(query, info);
     }
@@ -624,6 +644,9 @@ class DBQB {
     public async updateQuery(_active: IActive) {
         const active = { ..._active } as IActivePrivate;
         if (!(await this.initQuery(active))) {
+            return null;
+        }
+        if (!active.table) {
             return null;
         }
 
@@ -663,6 +686,9 @@ class DBQB {
         if (!(await this.initQuery(active))) {
             return null;
         }
+        if (!active.table) {
+            return null;
+        }
 
         const query = [
             'INSERT INTO', '{table}', 'SET', '{data}', 'ON DUPLICATE KEY UPDATE', '{set}'
@@ -673,16 +699,18 @@ class DBQB {
         info.table = `\`${active.table}\``;
 
         // data
-        info.data = this.getDataQuery(active);
-        if (info.data === null || !info.data) {
+        const sData = this.getDataQuery(active);
+        if (sData === null || !sData) {
             return null;
         }
+        info.data = sData;
 
         // set
-        info.set = this.getSetQuery(active);
-        if (info.set === null || !info.set) {
+        const sSet = this.getSetQuery(active);
+        if (sSet === null || !sSet) {
             return null;
         }
+        info.set = sSet;
 
         return this.makeQuery(query, info);
     }
@@ -690,6 +718,9 @@ class DBQB {
     public async deleteQuery(_active: IActive) {
         const active = { ..._active } as IActivePrivate;
         if (!(await this.initQuery(active))) {
+            return null;
+        }
+        if (!active.table) {
             return null;
         }
 
@@ -739,15 +770,17 @@ class DBQB {
             outerJoin: 'OUTER',
             joins: 'joins'
         };
-        for (const key of _.keys(joinType)) {
-            if (_.get(active, key) && _.size(active[key]) > 0) {
-                for (const item of active[key] as IActiveJoin[]) {
+        for (const key in joinType) {
+            const joinData = _.get(active, key) as IActiveJoin[];
+            if (joinData && _.size(joinData) > 0) {
+                for (const item of joinData) {
                     const join = {
                         ...item
                     };
                     if (key !== 'joins') {
-                        join.type = joinType[key];
-                    } else if (!join.type) {
+                        join.type = _.get(joinType, key);
+                    }
+                    if (!join.type) {
                         join.type = 'LEFT';
                     }
                     join.type = join.type.toUpperCase() as any;
@@ -846,10 +879,11 @@ class DBQB {
                     table: join.table,
                     as: join.as
                 };
-                sJoinOn = this.getWhereBuild(joinActive, join.on, 'AND', false);
-                if (sJoinOn === null || !sJoinOn) {
+                const sWhere = this.getWhereBuild(joinActive, join.on, 'AND', false);
+                if (sWhere === null || !sWhere) {
                     return null;
                 }
+                sJoinOn = sWhere;
             } else {
                 this.addErrorLogs('join on : not support');
                 return null;
@@ -862,8 +896,8 @@ class DBQB {
 
     private getWhereQuery(active: IActivePrivate) {
         let sWhere = '';
-        let whereAnd = '';
-        let whereOr = '';
+        let whereAnd: string | null = '';
+        let whereOr: string | null = '';
 
         if (_.get(active, 'where') && this.getKeys(active.where).length > 0) {
             whereAnd = this.getWhereBuild(active, active.where, 'AND', false);
@@ -909,9 +943,14 @@ class DBQB {
                 sReturn += ` ${where} `;
             }
 
-            let keyVal = '';
+            let keyVal: string | null = '';
             if (typeof _key === 'symbol') {
-                const des = _key.description.toLocaleUpperCase();
+                let des = _key.description;
+                if (!des) {
+                    this.addErrorLogs(`where symbol no description`);
+                    return null;
+                }
+                des = des.toLocaleUpperCase();
                 if (!_.includes(['OR', 'AND'], des)) {
                     this.addErrorLogs(`where symbol : ${des}`);
                     return null;
@@ -954,6 +993,10 @@ class DBQB {
 
         // 값이 필드명인지 체크
         if (_.isSymbol(val)) {
+            if (!val.description) {
+                this.addErrorLogs(`val table field no description`);
+                return null;
+            }
             valTFInfo = this.getTableField(active, val.description);
             if (valTFInfo === null) {
                 this.addErrorLogs(`val table field : ${val.description}`);
@@ -1121,9 +1164,8 @@ class DBQB {
 
     private getGroupByQuery(active: IActivePrivate) {
         let sGroupBy = '';
-        if (_.get(active, 'groupBy') && _.size(active.groupBy) > 0) {
-            for (const key of _.keys(active.groupBy)) {
-                const val = active.groupBy[key];
+        if (active.groupBy && _.size(active.groupBy) > 0) {
+            for (const val of active.groupBy) {
                 const aTFInfo = this.getTableField(active, val);
                 if (aTFInfo === null) {
                     return null;
@@ -1139,10 +1181,10 @@ class DBQB {
 
     private getOrderByQuery(active: IActivePrivate) {
         let sOrderBy = '';
-        if (_.get(active, 'orderBy') && _.size(active.orderBy) > 0) {
+        if (active.orderBy && _.size(active.orderBy) > 0) {
             const isArray = _.isArray(active.orderBy);
             for (const key of _.keys(active.orderBy)) {
-                const val = active.orderBy[key];
+                const val = _.get(active.orderBy, key);
                 let _key = '';
                 let _val = '';
 
@@ -1209,7 +1251,7 @@ class DBQB {
 
     private getCountQuery(active: IActivePrivate) {
         let sCount = '';
-        if (_.get(active, 'groupBy') && _.size(active.groupBy) > 0) {
+        if (active.groupBy && _.size(active.groupBy) > 0) {
             let distinct = '';
             for (const val of active.groupBy) {
                 const aTFInfo = this.getTableField(active, val);
@@ -1229,12 +1271,12 @@ class DBQB {
     private getDataQuery(active: IActivePrivate) {
         let sData = '';
 
-        if (!_.get(active, 'data') && _.size(active.data) <= 0) {
+        if (!active.data && _.size(active.data) <= 0) {
             this.addErrorLogs('no data');
             return null;
         }
 
-        const data: Record<string, any> = active.data;
+        const data = active.data as Record<string, any>;
 
         for (const _key of _.keys(data)) {
             let _val = data[_key];
@@ -1269,12 +1311,12 @@ class DBQB {
     private getDataListQuery(active: IActivePrivate) {
         let sDataList = '';
 
-        if (!_.get(active, 'data') || _.size(active.data) <= 0) {
+        if (!active.data || _.size(active.data) <= 0) {
             this.addErrorLogs('no datalist');
             return null;
         }
 
-        if (!_.get(active, 'field') || _.size(active.field) <= 0) {
+        if (!active.field || _.size(active.field) <= 0) {
             this.addErrorLogs('no field');
             return null;
         }
@@ -1315,51 +1357,53 @@ class DBQB {
         let sSet = '';
         const aIfs = ['=', '+=', '-='];
 
-        for (const key of _.keys(active.set)) {
-            let val = active.set[key];
-            const aTFInfo = this.getTableField(active, key);
-            if (aTFInfo === null) {
-                return null;
-            }
-
-            if (!_.includes(aIfs, aTFInfo.if)) {
-                this.addErrorLogs(`if error : ${aTFInfo.field} ${aTFInfo.if} ${val}`);
-                return null;
-            }
-
-            if (aTFInfo.type) {
-                const chkVal = this.checkDataType(aTFInfo.type, val);
-                if (chkVal === false) {
-                    this.addErrorLogs(`data err : ${aTFInfo.field} = ${val}`);
+        if (active.set && _.size(active.set) > 0) {
+            for (const key of _.keys(active.set)) {
+                let val = active.set[key];
+                const aTFInfo = this.getTableField(active, key);
+                if (aTFInfo === null) {
                     return null;
                 }
-                val = chkVal;
-            }
 
-            switch (aTFInfo.if) {
-                case '=':
-                {
-                    sSet += `, ${aTFInfo.field} = `;
-                    if (val === null) {
-                        sSet += `null `;
-                    } else {
-                        if (!aTFInfo.continue) {
+                if (!_.includes(aIfs, aTFInfo.if)) {
+                    this.addErrorLogs(`if error : ${aTFInfo.field} ${aTFInfo.if} ${val}`);
+                    return null;
+                }
+
+                if (aTFInfo.type) {
+                    const chkVal = this.checkDataType(aTFInfo.type, val);
+                    if (chkVal === false) {
+                        this.addErrorLogs(`data err : ${aTFInfo.field} = ${val}`);
+                        return null;
+                    }
+                    val = chkVal;
+                }
+
+                switch (aTFInfo.if) {
+                    case '=':
+                    {
+                        sSet += `, ${aTFInfo.field} = `;
+                        if (val === null) {
+                            sSet += `null `;
+                        } else {
+                            if (!aTFInfo.continue) {
+                                val = `"${val}"`;
+                            }
+                            sSet += `${val} `;
+                        }
+                        break;
+                    }
+                    case '+=':
+                    case '-=':
+                    {
+                        const ifArr = {'+=': '+', '-=': '-'};
+                        sSet += `, ${aTFInfo.field} = ${aTFInfo.field} ${ifArr[aTFInfo.if]} `;
+                        if (aTFInfo.continue) {
                             val = `"${val}"`;
                         }
                         sSet += `${val} `;
+                        break;
                     }
-                    break;
-                }
-                case '+=':
-                case '-=':
-                {
-                    const ifArr = {'+=': '+', '-=': '-'};
-                    sSet += `, ${aTFInfo.field} = ${aTFInfo.field} ${ifArr[aTFInfo.if]} `;
-                    if (aTFInfo.continue) {
-                        val = `"${val}"`;
-                    }
-                    sSet += `${val} `;
-                    break;
                 }
             }
         }
@@ -1401,7 +1445,7 @@ class DBQB {
 
             if (join.type !== 'LEFT') {
                 // 최상단 조인은 left 조인만 체크
-                if (join.path.indexOf('.') === -1) {
+                if (join.path!.indexOf('.') === -1) {
                     join.clear = false;
                     continue;
                 } else {
@@ -1411,7 +1455,7 @@ class DBQB {
                         }
 
                         // 부모 테이블이 있을 경우 자식 테이블도 유지
-                        if (join.path.indexOf(join2.path) !== -1 && join2.clear === false) {
+                        if (join.path!.indexOf(join2.path!) !== -1 && join2.clear === false) {
                             join.clear = false;
                             break;
                         }
@@ -1435,7 +1479,7 @@ class DBQB {
                     if (!join2.clear) {
                         continue;
                     }
-                    if (join.path.indexOf(join2.path) !== -1) {
+                    if (join.path!.indexOf(join2.path!) !== -1) {
                         join2.clear = false;
                     }
                 }
@@ -1456,8 +1500,9 @@ class DBQB {
         for (const _query of query) {
             if (_.startsWith(_query, '{') && _.endsWith(_query, '}')) {
                 const _field = this.pregMatch(_query, /\{(.+)\}/, 1) as string;
-                if (_.get(info, _field)) {
-                    sQuery += ` ${info[_field]}`;
+                const getInfo = _.get(info, _field);
+                if (getInfo) {
+                    sQuery += ` ${getInfo}`;
                 }
             } else {
                 sQuery += ` ${_query}`;
@@ -1472,7 +1517,7 @@ class DBQB {
         return sQuery;
     }
 
-    private escape(text: string | string[]) {
+    private escape(text: string | string[]): any {
         if (_.isArray(text)) {
             return (<string[]>text).map((t) => this.escape(t));
         }
@@ -1497,6 +1542,7 @@ class DBQB {
                     case '\\':
                         return '\\' + char;
                 }
+                return char;
             });
         }
 
@@ -1514,7 +1560,7 @@ class DBQB {
         return _.get(match, index);
     }
 
-    private getKeys(array) {
+    private getKeys(array: any) {
         if (!array) {
             return [];
         }

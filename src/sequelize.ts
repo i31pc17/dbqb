@@ -18,24 +18,33 @@ export interface ISelectPageResult<T = any> {
 export type TSelectFn<T> = (item: T, active: IActive) => Promise<void> | void;
 
 export type TQueryOptions = Transaction | QueryOptions | null;
+export enum SelectTypes {
+    row = 'row',
+    all = 'all',
+    page = 'page'
+}
+export type TSelectTypes  = 'row' | 'all' | 'page';
 
-export interface ISelectActive<T> extends IActive {
+export interface ISelectActive<T = any> extends IActive {
     func?: TSelectFn<T>;
+    nolimit?: boolean;
+    query?: string;
+    queryCnt?: string
 }
 
-export const selectMap = <T, TResult = any>(index: any, type: string, func: (item: T) => TResult): TResult[] => {
+export const selectMap = <T, TResult = any>(index: any, type: SelectTypes, func: (item: T) => TResult): TResult[] => {
     let result: any = [];
-    if (type === 'page') {
+    if (type === SelectTypes.page) {
         if (typeof func === 'function' && index.page.total > 0 && index.contents && index.contents.length > 0) {
             result = index.contents.map(func);
         }
-    } else if (type === 'all') {
+    } else if (type === SelectTypes.all) {
         if (typeof func === 'function' && _.size(index) > 0) {
             _.map(index, (items) => {
                 result.push(func(items));
             });
         }
-    } else if (type === 'row') {
+    } else if (type === SelectTypes.row) {
         if (typeof func === 'function' && index) {
             result = [func(index)];
         }
@@ -49,7 +58,7 @@ export const selectMap = <T, TResult = any>(index: any, type: string, func: (ite
 class SequelizeDB {
     public readonly sequelize: Sequelize;
     private dbqb: DBQB;
-    private fn: (item: any, key: string) => void | null = null;
+    private fn: ((item: any, key: string) => void) | null = null;
 
     constructor(sequelize: Sequelize) {
         this.sequelize = sequelize;
@@ -142,7 +151,9 @@ class SequelizeDB {
 
         if (this.fn) {
             _.forEach<any>(row, (val: any, key: string) => {
-                row[key] = this.fn(val, key);
+                if (this.fn) {
+                    _.set<any>(row, key, this.fn(val, key));
+                }
             });
         }
 
@@ -161,7 +172,9 @@ class SequelizeDB {
         if (this.fn) {
             _.forEach(index, (items, idx: number) => {
                 _.forEach<any>(items, (item: any, key: string) => {
-                    index[idx][key] = this.fn(item, key);
+                    if (this.fn) {
+                        _.set<any>(index, `${idx}.${key}`, this.fn(item, key));
+                    }
                 });
             });
         }
@@ -177,12 +190,11 @@ class SequelizeDB {
             return null;
         }
 
-        const keys = Object.keys(index[0]);
-
-        return index[0][keys[0]] as T;
+        const keys = _.keys(index[0]);
+        return _.get(index, `0.${keys[0]}`) as T;
     }
 
-    public async selectRow<T = any>(active: IActive, t: TQueryOptions = null): Promise<T | null> {
+    public async selectRow<T = any>(active: ISelectActive, t: TQueryOptions = null): Promise<T | null> {
         active.limit = 1;
         const sQuery = await this.dbqb.selectQuery(active);
         if (!sQuery) {
@@ -191,8 +203,9 @@ class SequelizeDB {
         return this.queryRow<T>(sQuery, t);
     }
 
-    public async selectAll<T = any>(active: IActive, t: TQueryOptions = null): Promise<T[] | null> {
-        if (!_.get(active, 'nolimit')) {
+    public async selectAll<T = any>(active: ISelectActive, t: TQueryOptions = null): Promise<T[] | null> {
+        if (!active.nolimit) {
+
             _.set(active, 'offset', _.get(active, 'offset', 0));
             _.set(active, 'limit', _.get(active, 'limit', 1));
         }
@@ -203,7 +216,7 @@ class SequelizeDB {
         return this.queryAll<T>(sQuery, t);
     }
 
-    public async selectOne<T = any>(active: IActive, t: TQueryOptions = null): Promise<T | null> {
+    public async selectOne<T = any>(active: ISelectActive, t: TQueryOptions = null): Promise<T | null> {
         active.limit = 1;
         const sQuery = await this.dbqb.selectQuery(active);
         if (!sQuery) {
@@ -212,15 +225,15 @@ class SequelizeDB {
         return this.queryOne<T>(sQuery, t);
     }
 
-    public async selectPage<T = any>(active: IActive & {query?: string, queryCnt?: string}, t: TQueryOptions = null) {
-        if (!_.get(active, 'nolimit')) {
-            _.set(active, 'offset', _.get(active, 'offset', 0));
-            _.set(active, 'limit', _.get(active, 'limit', 20));
+    public async selectPage<T = any>(active: ISelectActive, t: TQueryOptions = null) {
+        if (!active.nolimit) {
+            active.offset = _.get(active, 'offset', 0);
+            active.limit = _.get(active, 'limit', 20);
         }
 
-        let sQuery = '';
-        let sQueryCnt = '';
-        if (_.get(active, 'query') && _.get(active, 'queryCnt')) {
+        let sQuery: string | null = '';
+        let sQueryCnt: string | null = '';
+        if (active.query && active.queryCnt) {
             sQuery = active.query;
             sQueryCnt = active.queryCnt;
 
@@ -229,7 +242,7 @@ class SequelizeDB {
             }
         } else {
             sQuery = await this.dbqb.selectQuery(active);
-            if ((_.get(active, 'having') && _.size(active.having) > 0) || (_.get(active, 'havingOr') && _.size(active.havingOr) > 0)) {
+            if ((active.having && _.size(active.having) > 0) || (active.havingOr && _.size(active.havingOr) > 0)) {
                 const activeCnt = { ...active };
                 _.unset(activeCnt, 'limit');
                 _.unset(activeCnt, 'offset');
@@ -255,7 +268,7 @@ class SequelizeDB {
                 page: 1,
                 lastPage: 1
             };
-            if (_.get(active, 'nolimit')) {
+            if (active.nolimit) {
                 page.offset = 0;
                 page.limit = nCount;
                 page.total = nCount;
@@ -284,24 +297,34 @@ class SequelizeDB {
         return aReturn;
     }
 
-    public async select<T = any>(_active: ISelectActive<T>, type: 'row' | 'all' | 'page' = 'page', func: TSelectFn<T> | null = null, t: TQueryOptions = null): Promise<T | T[] | ISelectPageResult<T> | null> {
+    public async select<T = any>(_active: ISelectActive<T>, type?: 'page', func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<ISelectPageResult<T> | null>;
+    public async select<T = any>(_active: ISelectActive<T>, type: 'all', func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<T[] | null>;
+    public async select<T = any>(_active: ISelectActive<T>, type: 'row', func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<T | null>;
+    public async select<T = any>(_active: ISelectActive<T>, type: TSelectTypes, func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<T | T[] | ISelectPageResult<T> | null>;
+    public async select<T = any>(_active: ISelectActive<T>, type: TSelectTypes = 'page', func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<T | T[] | ISelectPageResult<T> | null> {
         const active = { ..._active };
         if (_.get(active, 'func')) {
             func = active.func;
         }
-        let promise = [];
+        let promise: any[] = [];
         let index: any = null;
         if (type === 'page') {
             const pageIndex = await this.selectPage<T>(active, t);
             if (pageIndex && _.isArray(pageIndex.contents) && _.size(pageIndex.contents) > 0 && typeof func === 'function') {
-                promise = _.map(pageIndex.contents, (item) => func(item, active));
+                promise = _.map(pageIndex.contents, (item) => {
+                    if (func) {
+                        func(item, active);
+                    }
+                });
             }
             index = pageIndex;
         } else if (type === 'all') {
             const allIndex = await this.selectAll<T>(active, t);
             if (allIndex && _.size(allIndex) > 0 && typeof func === 'function') {
                 _.map(allIndex, (items) => {
-                    promise.push(func(items, active));
+                    if (func) {
+                        promise.push(func(items, active));
+                    }
                 });
             }
             index = allIndex;
@@ -344,18 +367,22 @@ class SequelizeDB {
             throw new Error('query builder error');
         }
 
+        if (!active.table) {
+            return;
+        }
+
         const insertOption: QueryOptionsWithType<QueryTypes.INSERT> = this.queryOptions(t) as any;
         insertOption.type = QueryTypes.INSERT;
         const index = await this.sequelize.query(query, insertOption);
 
         let priKey: string | null = null;
         const _tField = await this.getFields(active.table);
-        _.forEach(_tField, (_item) => {
+        for (const _item of _tField) {
             if (_item.Key === 'PRI' && _item.Extra === 'auto_increment') {
                 priKey = _item.Field;
-                return false;
+                break;
             }
-        });
+        }
 
         let insertIds: number[] = [];
         if (priKey) {
@@ -374,7 +401,7 @@ class SequelizeDB {
                 }
             }, t);
 
-            insertIds = _.map(_idxs, (id) => id[priKey]);
+            insertIds = _.map(_idxs, (id) => id[priKey!]);
         }
 
         return {
