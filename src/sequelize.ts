@@ -18,11 +18,7 @@ export interface ISelectPageResult<T = any> {
 export type TSelectFn<T> = (item: T, active: IActive) => Promise<void> | void;
 
 export type TQueryOptions = Transaction | QueryOptions | null;
-export enum SelectTypes {
-    row = 'row',
-    all = 'all',
-    page = 'page'
-}
+
 export type TSelectTypes  = 'row' | 'all' | 'page';
 
 export interface ISelectActive<T = any> extends IActive {
@@ -32,19 +28,19 @@ export interface ISelectActive<T = any> extends IActive {
     queryCnt?: string
 }
 
-export const selectMap = <T, TResult = any>(index: any, type: SelectTypes, func: (item: T) => TResult): TResult[] => {
+export const selectMap = <T, TResult = any>(index: any, type: TSelectTypes, func: (item: T) => TResult): TResult[] => {
     let result: any = [];
-    if (type === SelectTypes.page) {
+    if (type === 'page') {
         if (typeof func === 'function' && index.page.total > 0 && index.contents && index.contents.length > 0) {
             result = index.contents.map(func);
         }
-    } else if (type === SelectTypes.all) {
+    } else if (type === 'all') {
         if (typeof func === 'function' && _.size(index) > 0) {
             _.map(index, (items) => {
                 result.push(func(items));
             });
         }
-    } else if (type === SelectTypes.row) {
+    } else if (type === 'row') {
         if (typeof func === 'function' && index) {
             result = [func(index)];
         }
