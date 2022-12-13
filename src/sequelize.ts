@@ -148,7 +148,7 @@ class SequelizeDB {
         if (this.fn) {
             _.forEach<any>(row, (val: any, key: string) => {
                 if (this.fn) {
-                    _.set<any>(row, key, this.fn(val, key));
+                    (row as any)[key] = this.fn(val, key);
                 }
             });
         }
@@ -169,7 +169,7 @@ class SequelizeDB {
             _.forEach(index, (items, idx: number) => {
                 _.forEach<any>(items, (item: any, key: string) => {
                     if (this.fn) {
-                        _.set<any>(index, `${idx}.${key}`, this.fn(item, key));
+                        (index as any)[idx][key] = this.fn(item, key);
                     }
                 });
             });
@@ -187,7 +187,7 @@ class SequelizeDB {
         }
 
         const keys = _.keys(index[0]);
-        return _.get(index, `0.${keys[0]}`) as T;
+        return (index as any)[0][keys[0]] as T;
     }
 
     public async selectRow<T = any>(active: ISelectActive, t: TQueryOptions = null): Promise<T | null> {
@@ -201,9 +201,8 @@ class SequelizeDB {
 
     public async selectAll<T = any>(active: ISelectActive, t: TQueryOptions = null): Promise<T[] | null> {
         if (!active.nolimit) {
-
-            _.set(active, 'offset', _.get(active, 'offset', 0));
-            _.set(active, 'limit', _.get(active, 'limit', 1));
+            active.offset = active.offset || 0;
+            active.limit = active.limit || 1;
         }
         const sQuery = await this.dbqb.selectQuery(active);
         if (!sQuery) {
@@ -223,8 +222,8 @@ class SequelizeDB {
 
     public async selectPage<T = any>(active: ISelectActive, t: TQueryOptions = null) {
         if (!active.nolimit) {
-            active.offset = _.get(active, 'offset', 0);
-            active.limit = _.get(active, 'limit', 20);
+            active.offset = active.offset || 0;
+            active.limit = active.limit || 20;
         }
 
         let sQuery: string | null = '';
@@ -233,7 +232,7 @@ class SequelizeDB {
             sQuery = active.query;
             sQueryCnt = active.queryCnt;
 
-            if (!_.get(active, 'nolimit')) {
+            if (!active.nolimit) {
                 sQuery += ` LIMIT ${active.offset}, ${active.limit}`;
             }
         } else {
@@ -299,7 +298,7 @@ class SequelizeDB {
     public async select<T = any>(_active: ISelectActive<T>, type: TSelectTypes, func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<T | T[] | ISelectPageResult<T> | null>;
     public async select<T = any>(_active: ISelectActive<T>, type: TSelectTypes = 'page', func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<T | T[] | ISelectPageResult<T> | null> {
         const active = { ..._active };
-        if (_.get(active, 'func')) {
+        if (active.func) {
             func = active.func;
         }
         let promise: any[] = [];
