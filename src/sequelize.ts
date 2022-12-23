@@ -15,6 +15,8 @@ export interface ISelectPageResult<T = any> {
     page: ISelectPage;
 }
 
+export type TSelectResult<T = any> = T | T[] | ISelectPageResult<T>;
+
 export type TSelectFn<T> = (item: T, active: IActive) => Promise<void> | void;
 
 export type TQueryOptions = Transaction | QueryOptions | null;
@@ -28,21 +30,24 @@ export interface ISelectActive<T = any> extends IActive {
     queryCnt?: string
 }
 
-export const selectMap = <T, TResult = any>(index: any, type: TSelectTypes, func: (item: T) => TResult): TResult[] => {
+export const selectMap = <T = any, TResult = any>(index: TSelectResult<T>, type: TSelectTypes, func: (item: T) => TResult): TResult[] => {
     let result: any = [];
     if (type === 'page') {
-        if (typeof func === 'function' && index.page.total > 0 && index.contents && index.contents.length > 0) {
-            result = index.contents.map(func);
+        const _index = index as ISelectPageResult<T>;
+        if (typeof func === 'function' && _index.page.total > 0 && _index.contents && _index.contents.length > 0) {
+            result = _index.contents.map(func);
         }
     } else if (type === 'all') {
-        if (typeof func === 'function' && _.size(index) > 0) {
-            _.map(index, (items) => {
+        const _index = index as T[];
+        if (typeof func === 'function' && _.size(_index) > 0) {
+            _.map(_index, (items) => {
                 result.push(func(items));
             });
         }
     } else if (type === 'row') {
-        if (typeof func === 'function' && index) {
-            result = [func(index)];
+        const _index = index as T;
+        if (typeof func === 'function' && _index) {
+            result = [func(_index)];
         }
     }
     if (result.length > 0 && result[0] && typeof result[0].then === 'function') {
@@ -295,8 +300,8 @@ class SequelizeDB {
     public async select<T = any>(_active: ISelectActive<T>, type?: 'page', func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<ISelectPageResult<T> | null>;
     public async select<T = any>(_active: ISelectActive<T>, type: 'all', func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<T[] | null>;
     public async select<T = any>(_active: ISelectActive<T>, type: 'row', func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<T | null>;
-    public async select<T = any>(_active: ISelectActive<T>, type: TSelectTypes, func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<T | T[] | ISelectPageResult<T> | null>;
-    public async select<T = any>(_active: ISelectActive<T>, type: TSelectTypes = 'page', func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<T | T[] | ISelectPageResult<T> | null> {
+    public async select<T = any>(_active: ISelectActive<T>, type: TSelectTypes, func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<TSelectResult<T> | null>;
+    public async select<T = any>(_active: ISelectActive<T>, type: TSelectTypes = 'page', func?: TSelectFn<T> | null, t?: TQueryOptions): Promise<TSelectResult<T> | null> {
         const active = { ..._active };
         if (active.func) {
             func = active.func;
