@@ -813,42 +813,65 @@ class DBQB {
         }
 
         // sort
-        if (joins.length >= 2 && !parentPath) {
-            for (const join of joins) {
-                if (join.on) {
-                    let joinKey = '';
-                    if (_.isSymbol(join.on)) {
-                        joinKey = join.on.description!;
-                    } else if (_.isString(join.on) && !this.pregMatch(join.on, /[=><]+/)) {
-                        joinKey = join.on;
-                    } else if (_.size(join.on) > 0) {
-                        _.forEach(join.on, (_val) => {
-                            if (_.isSymbol(_val)) {
-                                joinKey = _val.description!;
-                                return false;
-                            }
-                        });
-                    }
-                    if (joinKey) {
-                        const joinKeySplit = joinKey.split('.');
-                        if (joinKeySplit.length >= 2 &&
-                            join.path?.indexOf(`${joinKeySplit[0]}:`) === -1 &&
-                            !join.path?.endsWith(`:${joinKeySplit[0]}`) &&
-                            join.path?.indexOf(`:${joinKeySplit[0]}.`) === -1)
-                        {
-                            _.forEach(joins, (_val) => {
-                                if (_val.table === joinKeySplit[0] || (_val.as && _val.as === joinKeySplit[0])) {
-                                    join.path = `${_val.path}.${join.path}`;
-                                    join.sort = join.path.split('.').length;
+        if (!parentPath) {
+            if (joins.length > 0) {
+                for (const join of joins) {
+                    if (join.on) {
+                        let joinKey = '';
+                        if (_.isSymbol(join.on)) {
+                            joinKey = join.on.description!;
+                        } else if (_.isString(join.on) && !this.pregMatch(join.on, /[=><]+/)) {
+                            joinKey = join.on;
+                        } else if (_.size(join.on) > 0) {
+                            _.forEach(join.on, (_val) => {
+                                if (_.isSymbol(_val)) {
+                                    joinKey = _val.description!;
                                     return false;
                                 }
                             });
                         }
+                        if (joinKey) {
+                            const joinKeySplit = joinKey.split('.');
+                            if (joinKeySplit.length >= 2 &&
+                                join.path?.indexOf(`${joinKeySplit[0]}:`) === -1 &&
+                                !join.path?.endsWith(`:${joinKeySplit[0]}`) &&
+                                join.path?.indexOf(`:${joinKeySplit[0]}.`) === -1)
+                            {
+                                _.forEach(joins, (_val) => {
+                                    if (_val.table === joinKeySplit[0] || (_val.as && _val.as === joinKeySplit[0])) {
+                                        join.path = `${_val.path}.${join.path}`;
+                                        join.sort = join.path.split('.').length;
+                                        return false;
+                                    }
+                                });
+                            }
+                        }
                     }
                 }
+                joins = _.orderBy(joins, ['sort'], ['asc']);
+
+                // path 연결안된 join 예외처리
+                let isChange = false;
+                for (const join of joins) {
+                    const _exSplit = join.path!.split('.');
+                    if (_exSplit.length === 1) {
+                        continue;
+                    }
+                    const _exPath = _exSplit.shift();
+                    for (const join2 of joins) {
+                        if (join2.path!.endsWith(_exPath!)) {
+                            join.path = `${join2.path}.${_.join(_exSplit, '.')}`;
+                            join.sort = join.path.split('.').length;
+                            isChange = true;
+                        }
+                    }
+                }
+                if (isChange) {
+                    joins = _.orderBy(joins, ['sort'], ['asc']);
+                }
             }
-            joins = _.orderBy(joins, ['sort'], ['asc']);
         }
+
         return joins;
     }
 
