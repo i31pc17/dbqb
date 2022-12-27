@@ -70,6 +70,7 @@ export interface IActiveJoin extends IActiveJoins {
     type?: 'LEFT' | 'left' | 'INNER' | 'inner' | 'RIGHT' | 'right' | 'OUTER' | 'outer';
     // 내부용
     path?: string;
+    sort?: number;
 }
 
 interface IActiveJoins {
@@ -789,6 +790,8 @@ class DBQB {
                         join.path = `${parentPath}.${join.path}`;
                     }
 
+                    join.sort = join.path.split('.').length;
+
                     _.unset(join, 'joins');
                     _.unset(join, 'leftJoin');
                     _.unset(join, 'innerJoin');
@@ -807,6 +810,44 @@ class DBQB {
                     }
                 }
             }
+        }
+
+        // sort
+        if (joins.length >= 2 && !parentPath) {
+            for (const join of joins) {
+                if (join.on) {
+                    let joinKey = '';
+                    if (_.isSymbol(join.on)) {
+                        joinKey = join.on.description!;
+                    } else if (_.isString(join.on) && !this.pregMatch(join.on, /[=><]+/)) {
+                        joinKey = join.on;
+                    } else if (_.size(join.on) > 0) {
+                        _.forEach(join.on, (_val) => {
+                            if (_.isSymbol(_val)) {
+                                joinKey = _val.description!;
+                                return false;
+                            }
+                        });
+                    }
+                    if (joinKey) {
+                        const joinKeySplit = joinKey.split('.');
+                        if (joinKeySplit.length >= 2 &&
+                            join.path?.indexOf(`${joinKeySplit[0]}:`) === -1 &&
+                            !join.path?.endsWith(`:${joinKeySplit[0]}`) &&
+                            join.path?.indexOf(`:${joinKeySplit[0]}.`) === -1)
+                        {
+                            _.forEach(joins, (_val) => {
+                                if (_val.table === joinKeySplit[0] || (_val.as && _val.as === joinKeySplit[0])) {
+                                    join.path = `${_val.path}.${join.path}`;
+                                    join.sort = join.path.split('.').length;
+                                    return false;
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            joins = _.orderBy(joins, ['sort'], ['asc']);
         }
         return joins;
     }
