@@ -27,7 +27,7 @@ export interface IActive extends IActiveJoins{
 export interface IFieldItem {
     Field: string;
     Type: string;
-    Null: string;
+    Null: string; // YES | NO
     Key: string;
     Default: string;
     Extra: string;
@@ -1266,7 +1266,7 @@ class DBQB {
 
 
                 if (!_.includes(['ASC', 'DESC'], _val)) {
-                    this.addErrorLogs(`orderBy : ${_key} : ${_val}`);
+                    this.addErrorLogs(`orderBy : ${_key} : ${_val} (ASC/DESC)`);
                     return null;
                 }
 
@@ -1396,7 +1396,6 @@ class DBQB {
                 if (aTFInfo === null) {
                     return null;
                 }
-
                 if (aTFInfo.type && _.get(data, field)) {
                     const chkVal = this.checkDataType(aTFInfo.type, data[field]);
                     if (chkVal === false) {
@@ -1406,6 +1405,15 @@ class DBQB {
                     sData += `, "${chkVal}"`;
                 } else if(_.has(data, field) && data[field] !== null) {
                     sData += `, "${data[field]}"`;
+                } else if(data[field] === null) {
+                    sData += `, null`;
+                } else if(!_.has(data, field)) {
+                    const fieldInfo: IFieldItem = _.get(active.tableField, `${active.table}.${field}`) as any;
+                    if (fieldInfo && fieldInfo.Null === 'NO' && fieldInfo.Default !== null) {
+                        sData += `, "${fieldInfo.Default}"`;
+                    } else {
+                        sData += `, null`;
+                    }
                 } else {
                     sData += `, null`;
                 }
