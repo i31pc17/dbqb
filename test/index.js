@@ -512,6 +512,15 @@ const countJoinQuery5 = await dbqb.countQuery({
 });
 console.log(`countJoinQuery5 : ${countJoinQuery5}`);
 
+const forUpdateQuery = await dbqb.selectQuery({
+    table: 'user',
+    where: {
+        email: 'test@gmail.com'
+    },
+    forUpdate: true // true / nowait / skip
+});
+console.log(`forUpdateQuery : ${forUpdateQuery}`);
+
 if (dbqb.getErrorLogs().length > 0) {
     console.error('error', dbqb.getErrorLogs());
 } else {

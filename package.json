@@ -1,6 +1,6 @@
 {
   "name": "dbqb",
-  "version": "1.0.43",
+  "version": "1.0.44",
   "description": "mysql query builder",
   "type": "module",
   "exports": {
@@ -30,7 +30,7 @@
   "devDependencies": {
     "@types/lodash": "^4.14.182",
     "sequelize": "^6.25.5",
-    "unbuild": "^1.0.1"
+    "unbuild": "^1.1.1"
   },
   "dependencies": {
     "lodash": "^4.17.21"

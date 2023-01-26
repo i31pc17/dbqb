@@ -22,6 +22,7 @@ export interface IActive extends IActiveJoins{
     data?: Record<string, any> | Record<string, any>[];
     set?: Record<string, any>;
     parentTables?: {table: string, as?: string}[];
+    forUpdate?: boolean | 'nowait' | 'skip';
 }
 
 export interface IFieldItem {
@@ -59,6 +60,7 @@ interface IActiveInfo {
     data?: string;
     values?: string;
     set?: string;
+    forUpdate?: string;
 }
 
 export interface IActiveJoin extends IActiveJoins {
@@ -430,7 +432,7 @@ class DBQB {
         }
 
         const query = [
-            'SELECT', '{field}', 'FROM', '{table}', '{useIndex}', '{join}', '{where}', '{groupBy}', '{having}', '{orderBy}', '{limit}'
+            'SELECT', '{field}', 'FROM', '{table}', '{useIndex}', '{join}', '{where}', '{groupBy}', '{having}', '{orderBy}', '{limit}', '{forUpdate}'
         ];
         const info: IActiveInfo = {};
 
@@ -511,6 +513,15 @@ class DBQB {
         }
         if (sLimit && _.size(sLimit) > 0) {
             info.limit = `LIMIT ${sLimit}`;
+        }
+
+        // for update
+        if (active.forUpdate === true) {
+            info.forUpdate = 'FOR UPDATE';
+        } else if (active.forUpdate === 'nowait') {
+            info.forUpdate = 'FOR UPDATE nowait';
+        } else if (active.forUpdate === 'skip') {
+            info.forUpdate = 'FOR UPDATE skip locked';
         }
 
         return this.makeQuery(query, info);
