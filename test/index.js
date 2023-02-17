@@ -203,7 +203,6 @@ const bangQuery = await dbqb.selectQuery({
 });
 console.log(`bangQuery : ${bangQuery}`);
 
-// SQL Injection 주의
 const havingQuery = await dbqb.selectQuery({
     table: 'user',
     field: ['auth_yn'],
@@ -211,7 +210,7 @@ const havingQuery = await dbqb.selectQuery({
         'COUNT(1)': 'count'
     },
     having: {
-        '!count >=': 10,
+        'count >=': 10,
     }
 });
 console.log(`havingQuery : ${havingQuery}`);

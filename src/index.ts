@@ -44,6 +44,7 @@ interface IActivePrivate extends IActive {
     tableAs: Record<string, string[]>;
     asTable: Record<string, string>;
     tableField: Record<string, Record<string, IFieldItem>>;
+    whereType?: 'where' | 'having';
 }
 
 interface IActiveInfo {
@@ -303,6 +304,16 @@ class DBQB {
             return returns;
         }
 
+        // having AS 체크
+        if (active.whereType === 'having') {
+            const asKeys = this.getValues(active.fieldAs);
+            if (_.includes(asKeys, field)) {
+                returns.field = `\`${field}\``;
+                returns.type = 'text';
+                return returns;
+            }
+        }
+
         // 서브쿼리 예외처리
         if (this.pregMatch(field, /\(SELECT[^\)]+\)/i)) {
             returns.select = true;
@@ -487,6 +498,7 @@ class DBQB {
             const hActive = { ...active };
             hActive.where = active.having;
             hActive.whereOr = active.havingOr;
+            hActive.whereType = 'having';
 
             const sHaving = this.getWhereQuery(hActive);
             if (sHaving === null) {
@@ -1505,6 +1517,7 @@ class DBQB {
             return active;
         }
 
+        top:
         for (const join of active.joins) {
             // 설정값 우선
             if (join.clear === false || join.clear === true) {
@@ -1540,11 +1553,8 @@ class DBQB {
                         // 부모 테이블이 있을 경우 자식 테이블도 유지
                         if (join.path!.indexOf(join2.path!) !== -1 && join2.clear === false) {
                             join.clear = false;
-                            break;
+                            continue top;
                         }
-                    }
-                    if (join.clear === false) {
-                        continue;
                     }
                 }
             }
@@ -1656,6 +1666,17 @@ class DBQB {
         } catch (e) {
             return []
         }
+    }
+
+    private getValues(array: any) {
+        const keys = this.getKeys(array);
+        const values = [];
+
+        for (const key of keys) {
+            values.push(array[key]);
+        }
+
+        return values;
     }
 }
 
