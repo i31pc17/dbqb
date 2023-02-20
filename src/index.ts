@@ -10,6 +10,8 @@ export interface IActive extends IActiveJoins{
         fieldAs?: Record<string | symbol, string>;
     };
     useIndex?: string;
+    forceIndex?: string;
+    ignoreIndex?: string;
     where?: any;
     whereOr?: any;
     sWhere?: string;
@@ -23,6 +25,7 @@ export interface IActive extends IActiveJoins{
     set?: Record<string, any>;
     parentTables?: {table: string, as?: string}[];
     forUpdate?: boolean | 'nowait' | 'skip';
+    partition?: string[] | string;
 }
 
 export interface IFieldItem {
@@ -50,7 +53,7 @@ interface IActivePrivate extends IActive {
 interface IActiveInfo {
     table?: string;
     field?: string;
-    useIndex?: string;
+    index?: string;
     join?: string;
     where?: string;
     groupBy?: string;
@@ -62,6 +65,7 @@ interface IActiveInfo {
     values?: string;
     set?: string;
     forUpdate?: string;
+    partition?: string;
 }
 
 export interface IActiveJoin extends IActiveJoins {
@@ -120,7 +124,7 @@ class DBQB {
 
     private getPKField(active: IActivePrivate, table: string) {
         let PK = '';
-        const fields = _.get(active, `tableField.${table}`, []);
+        const fields = _.get(active, `tableField.${table}`, {}) as Record<string, IFieldItem>;
         _.forEach(fields, (field) => {
             if (field.Key === 'PRI' && field.Extra === 'auto_increment') {
                 PK = field.Field;
@@ -443,8 +447,9 @@ class DBQB {
         }
 
         const query = [
-            'SELECT', '{field}', 'FROM', '{table}', '{useIndex}', '{join}', '{where}', '{groupBy}', '{having}', '{orderBy}', '{limit}', '{forUpdate}'
+            'SELECT', '{field}', 'FROM', '{table}', '{partition}', '{index}', '{join}', '{where}', '{groupBy}', '{having}', '{orderBy}', '{limit}', '{forUpdate}'
         ];
+
         const info: IActiveInfo = {};
 
         // field
@@ -460,9 +465,16 @@ class DBQB {
             info.table += ` AS \`${active.as}\``;
         }
 
+        // partition
+        const sPartition = this.getPartitionQuery(active);
+        if (sPartition && _.size(sPartition) > 0) {
+            info.partition = sPartition;
+        }
+
         // index
-        if (active.useIndex) {
-            info.useIndex = ` USE INDEX (${active.useIndex}) `;
+        const sIndex = this.getIndexQuery(active);
+        if (sIndex && _.size(sIndex) > 0) {
+            info.index = sIndex;
         }
 
         // join
@@ -528,12 +540,9 @@ class DBQB {
         }
 
         // for update
-        if (active.forUpdate === true) {
-            info.forUpdate = 'FOR UPDATE';
-        } else if (active.forUpdate === 'nowait') {
-            info.forUpdate = 'FOR UPDATE nowait';
-        } else if (active.forUpdate === 'skip') {
-            info.forUpdate = 'FOR UPDATE skip locked';
+        const sForUpdate = this.getForUpdateQuery(active);
+        if (sForUpdate && _.size(sForUpdate) > 0) {
+            info.forUpdate = sForUpdate;
         }
 
         return this.makeQuery(query, info);
@@ -558,7 +567,7 @@ class DBQB {
         }
 
         const query = [
-            'SELECT', '{count}', 'FROM', '{table}', '{useIndex}', '{join}', '{where}'
+            'SELECT', '{count}', 'FROM', '{table}', '{partition}', '{index}', '{join}', '{where}', '{forUpdate}'
         ];
         const info: IActiveInfo = {};
 
@@ -575,9 +584,16 @@ class DBQB {
             info.table += ` AS \`${active.as}\``;
         }
 
+        // partition
+        const sPartition = this.getPartitionQuery(active);
+        if (sPartition && _.size(sPartition) > 0) {
+            info.partition = sPartition;
+        }
+
         // index
-        if (active.useIndex) {
-            info.useIndex = ` USE INDEX (${active.useIndex})`;
+        const sIndex = this.getIndexQuery(active);
+        if (sIndex && _.size(sIndex) > 0) {
+            info.index = sIndex;
         }
 
         // where
@@ -597,6 +613,12 @@ class DBQB {
         }
         if (sJoin && _.size(sJoin) > 0) {
             info.join = sJoin;
+        }
+
+        // for update
+        const sForUpdate = this.getForUpdateQuery(active);
+        if (sForUpdate && _.size(sForUpdate) > 0) {
+            info.forUpdate = sForUpdate;
         }
 
         return this.makeQuery(query, info);
@@ -675,7 +697,7 @@ class DBQB {
         }
 
         const query = [
-            'UPDATE', '{table}', '{useIndex}', '{set}', '{where}'
+            'UPDATE', '{table}', '{index}', '{set}', '{where}'
         ];
         const info: IActiveInfo = {};
 
@@ -683,8 +705,9 @@ class DBQB {
         info.table = `\`${active.table}\``;
 
         // index
-        if (active.useIndex) {
-            info.useIndex = ` USE INDEX (${active.useIndex})`;
+        const sIndex = this.getIndexQuery(active);
+        if (sIndex && _.size(sIndex) > 0) {
+            info.index = sIndex;
         }
 
         // set
@@ -1508,6 +1531,41 @@ class DBQB {
             return null;
         }
         return ` ${sSet.substring(1)} `
+    }
+
+    private getIndexQuery(active: IActivePrivate) {
+        let index = '';
+
+        if (active.forceIndex) {
+            index = ` FORCE INDEX (${active.forceIndex}) `;
+        } else if (active.useIndex) {
+            index = ` USE INDEX (${active.useIndex}) `;
+        } else if (active.ignoreIndex) {
+            index = ` IGNORE INDEX (${active.ignoreIndex}) `;
+        }
+
+        return index;
+    }
+
+    private getPartitionQuery(active: IActivePrivate) {
+        let query = '';
+        if (active.partition) {
+            const partitions = Array.isArray(active.partition) ? active.partition : [active.partition];
+            query = ` PARTITION (${_.join(partitions, ', ')}) `;
+        }
+        return query;
+    }
+
+    private getForUpdateQuery(active: IActivePrivate) {
+        let forUpdate = '';
+        if (active.forUpdate === true) {
+            forUpdate = ' FOR UPDATE ';
+        } else if (active.forUpdate === 'nowait') {
+            forUpdate = ' FOR UPDATE nowait ';
+        } else if (active.forUpdate === 'skip') {
+            forUpdate = ' FOR UPDATE skip locked ';
+        }
+        return forUpdate;
     }
 
     private clearJoinActive(_active: IActivePrivate, info: IActiveInfo) {

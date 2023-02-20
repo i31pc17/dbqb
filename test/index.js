@@ -520,6 +520,15 @@ const forUpdateQuery = await dbqb.selectQuery({
 });
 console.log(`forUpdateQuery : ${forUpdateQuery}`);
 
+const partitionQuery = await dbqb.selectQuery({
+    table: 'user',
+    where: {
+        email: 'test@gmail.com'
+    },
+    partition: ['p200101', 'p200102']
+});
+console.log(`partitionQuery : ${partitionQuery}`);
+
 if (dbqb.getErrorLogs().length > 0) {
     console.error('error', dbqb.getErrorLogs());
 } else {

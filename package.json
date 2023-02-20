@@ -1,6 +1,6 @@
 {
   "name": "dbqb",
-  "version": "1.0.45",
+  "version": "1.0.46",
   "description": "mysql query builder",
   "type": "module",
   "exports": {
@@ -28,15 +28,15 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@types/lodash": "^4.14.182",
-    "sequelize": "^6.25.5",
-    "unbuild": "^1.1.1"
+    "@types/lodash": "^4.14.191",
+    "sequelize": "^6.28.0",
+    "unbuild": "^1.1.2"
   },
   "dependencies": {
     "lodash": "^4.17.21"
   },
   "peerDependencies": {
-    "sequelize": "^6.25.5"
+    "sequelize": "^6.28.0"
   },
   "peerDependenciesMeta": {
     "sequelize": {
