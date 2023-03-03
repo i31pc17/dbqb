@@ -98,7 +98,7 @@ class DBQB {
         rightJoin: 'RIGHT',
         outerJoin: 'FULL OUTER',
     };
-    private ifs = ['=', '+=', '-=', '!=', '>', '>=', '<', '<=', '%', '!%'];
+    private ifs = ['=', '+=', '-=', '!=', '>', '>=', '<', '<=', '%', '!%', '<=>', '<!=>'];
     private errorLogs: string[] = [];
     constructor(db: IDB) {
         this.db = db;
@@ -1095,7 +1095,7 @@ class DBQB {
         let valTFInfo = null;
 
         // 해당 조건문만 허용
-        const aIfs = ['=', '!=', '>', '>=', '<', '<=', '%', '!%'];
+        const aIfs = ['=', '!=', '>', '>=', '<', '<=', '%', '!%', '<=>', '<!=>'];
         if (!_.includes(aIfs, aTFInfo.if)) {
             this.addErrorLogs(`if error : ${aTFInfo.field} ${aTFInfo.if} ${val}`);
             return null;
@@ -1126,7 +1126,7 @@ class DBQB {
             }
         } else {
             // 값이 배열일 경우 예외처리
-            if (_.isArray(val) && !_.includes(['=', '!='], aTFInfo.if)) {
+            if (_.isArray(val) && !_.includes(['=', '!=', '<=>', '<!=>'], aTFInfo.if)) {
                 this.addErrorLogs(`if error : ${aTFInfo.field} ${aTFInfo.if} (${_.join(val, ', ')})`);
                 return null;
             }
@@ -1157,6 +1157,14 @@ class DBQB {
                     }
                     val = chkVal;
                 }
+            }
+        }
+
+        // BETWEEN 조건문 체크
+        if (_.includes(['<=>', '<!=>'], aTFInfo.if)) {
+            if (!_.isArray(val) || _.size(val) !== 2) {
+                this.addErrorLogs(`if BETWEEN error : ${aTFInfo.field} ${aTFInfo.if} (${_.isArray(val) ? _.join(val, ', ') : val})`);
+                return null;
             }
         }
 
@@ -1210,6 +1218,17 @@ class DBQB {
                         val = `"${val}"`;
                     }
                     sReturn += ` ${val} `;
+                    break;
+                }
+                case '<=>':
+                case '<!=>':
+                {
+                    if (!aTFInfo.continue) {
+                        val[0] = `"${val[0]}"`;
+                        val[1] = `"${val[1]}"`;
+                    }
+                    const ifArr = { '<=>': 'BETWEEN', '<!=>': 'NOT BETWEEN' };
+                    sReturn += `${ifArr[aTFInfo.if]} ${val[0]} AND ${val[1]} `;
                     break;
                 }
             }

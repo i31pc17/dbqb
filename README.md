@@ -112,6 +112,10 @@ const where = {
     // date >= '2022-12-03'
     // `>=` `>` `<=` `<`
     'date >=': '2022-12-03',
+    // BETWEEN
+    'date <=>': ['2022-12-01', '2022-12-31'],
+    // NOT BETWEEN
+    'date <!=>': ['2022-12-01', '2022-12-31'],
     // idx IS NULL
     idx: null,
     // idx IS NOT NULL
@@ -310,6 +314,7 @@ const indexQuery = await dbqb.selectQuery({
     where: {
         id: 'test'
     },
+    // forceIndex, useIndex, ignoreIndex
     useIndex: 'id_index'
 });
 ```
@@ -332,5 +337,29 @@ const subQuery = await dbqb.selectQuery({
         'idx !=': Symbol('p.user_idx')
     },
     limit: 1
+});
+```
+
+## PARTITION
+```ts
+// SELECT `user`.* FROM `user`  PARTITION (p200101, p200102) WHERE  1  AND `user`.`email` = "test@gmail.com"
+const partitionQuery = await dbqb.selectQuery({
+    table: 'user',
+    where: {
+        email: 'test@gmail.com'
+    },
+    partition: ['p200101', 'p200102']
+});
+```
+
+## FOR UPDATE
+```ts
+// SELECT `user`.* FROM `user`  WHERE  1  AND  `user`.`email` = "test@gmail.com" FOR UPDATE
+const forUpdateQuery = await dbqb.selectQuery({
+    table: 'user',
+    where: {
+        email: 'test@gmail.com'
+    },
+    forUpdate: true // true / nowait / skip
 });
 ```

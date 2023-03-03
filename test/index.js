@@ -147,6 +147,8 @@ const selectWhereQuery = await dbqb.selectQuery({
         email: 'test@gmail.com',
         'idx !=': 3,
         'join_at >=': '2022-01-01 00:00:00',
+        'join_at <=>': ['2022-01-01 00:00:00', '2022-01-01 23:59:59'],
+        'join_at <!=>': ['2022-01-01 00:00:00', '2022-01-01 23:59:59'],
         login_at: null,
         join_at: Symbol('login_at'),
         'password !=': null,
@@ -339,6 +341,7 @@ const indexQuery = await dbqb.selectQuery({
     where: {
         email: 'test'
     },
+    // forceIndex, useIndex, ignoreIndex
     useIndex: 'email_index'
 });
 console.log(`indexQuery : ${indexQuery}`);
