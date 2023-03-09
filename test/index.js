@@ -250,6 +250,34 @@ const fieldQuery2 = await dbqb.selectQuery({
 });
 console.log(`fieldQuery2 : ${fieldQuery2}`);
 
+const fieldQuery3 = await dbqb.selectQuery({
+    table: 'user',
+    fieldAs: {
+        '!(SELECT `profile_parent`.`sns_url` FROM `profile` AS `profile_parent` WHERE `profile_parent`.`user_idx` = `user`.`idx` AND `profile_parent`.`nick` = `bankAs`.`bank_name` LIMIT 1)': 'profile_sns_url'
+    },
+    fieldQueryAs: [
+        [{
+            table: 'profile',
+            as: 'profile_parent',
+            field: ['sns_url'],
+            where: {
+                user_idx: Symbol('user.idx'),
+                nick: Symbol('bank.bank_name')
+            },
+        }, 'profile_sns_url2']
+    ],
+    innerJoin: [
+        {
+            table: 'bank',
+            as: 'bankAs',
+            on: {
+                user_idx: Symbol('user.idx')
+            }
+        }
+    ]
+});
+console.log(`fieldQuery3 : ${fieldQuery3}`);
+
 const leftJoinQuery = await dbqb.selectQuery({
     table: 'board',
     field: ['*'],

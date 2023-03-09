@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center"><a href-="https://github.com/i31pc17/dbqb">DBQB</a></h1>
+  <h1 align="center"><a href="https://github.com/i31pc17/dbqb">DBQB</a></h1>
 </p>
 
 <p align="center">
@@ -207,7 +207,16 @@ const fieldQuery3 = await dbqb.selectQuery({
     table: 'user',
     fieldAs: {
         '!(SELECT name FROM profile WHERE profile.user_idx = user.idx LIMIT 1)': 'profile_name'
-    }
+    },
+    fieldQueryAs: [
+        [{
+            table: 'profile',
+            field: ['name'],
+            where: {
+                user_idx: Symbol('user.idx'),
+            },
+        }, 'profile_name2']
+    ]
 });
 ```
 

@@ -5,9 +5,11 @@ export interface IActive extends IActiveJoins{
     as?: string;
     field?: string[];
     fieldAs?: Record<string | symbol, string>;
+    fieldQueryAs?: [IActive, string][];
     clearField?: {
         field?: string[];
         fieldAs?: Record<string | symbol, string>;
+        fieldQueryAs?: [IActive, string][];
     };
     useIndex?: string;
     forceIndex?: string;
@@ -199,7 +201,13 @@ class DBQB {
             if (active.clearField.fieldAs) {
                 active.fieldAs = active.clearField.fieldAs;
             }
+            if (active.clearField.fieldQueryAs) {
+                active.fieldQueryAs = active.clearField.fieldQueryAs;
+            }
         }
+
+        // field sub query 확인
+
 
         // 전체 테이블 체크
         active.tableList = _.uniq(active.tableList);
@@ -239,11 +247,11 @@ class DBQB {
             }
         }
 
-        if (active.fieldAs && _.size(active.fieldAs) > 0) {
-            const keys = this.getKeys(active.fieldAs);
+        const keys = this.getKeys(active.fieldAs);
+        if (keys.length > 0) {
             for (const _key of keys) {
                 const key = _.isSymbol(_key) ? _key.description : _key;
-                const val = active.fieldAs[_key];
+                const val = active.fieldAs![_key];
                 if (!key) {
                     this.addErrorLogs(`not key (symbol description)`);
                     return null;
@@ -444,6 +452,41 @@ class DBQB {
         const active = { ..._active } as IActivePrivate;
         if (!(await this.initQuery(active))) {
             return null;
+        }
+
+        // field query as
+        if (active.fieldQueryAs && active.fieldQueryAs.length > 0) {
+            if (!active.fieldAs) {
+                active.fieldAs = {};
+            }
+            const parentTables: IActive['parentTables'] = [];
+            parentTables.push({
+                table: active.table!,
+                as: active.as
+            });
+            if (active.joins && active.joins.length > 0) {
+                for (const join of active.joins) {
+                    if (join.query) {
+                        continue;
+                    }
+                    parentTables.push({
+                        table: join.table,
+                        as: join.as
+                    });
+                }
+            }
+            for (const fieldQueryAs of active.fieldQueryAs) {
+                const _fieldActive = fieldQueryAs[0];
+                if (!_fieldActive.parentTables) {
+                    _fieldActive.parentTables = [];
+                }
+                _fieldActive.parentTables = [..._fieldActive.parentTables, ...parentTables];
+                if (!_fieldActive.limit) {
+                    _fieldActive.limit = 1;
+                }
+                const fieldQuery = await this.selectQuery(_fieldActive);
+                active.fieldAs[Symbol(`!(${fieldQuery})`)] = fieldQueryAs[1];
+            }
         }
 
         const query = [
