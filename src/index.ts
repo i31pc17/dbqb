@@ -288,7 +288,8 @@ class DBQB {
         field = _.trim(field);
 
         const returns = {
-            continue: false,
+            continue: false, // key, value 유효성 체크 안함
+            v_continue: false, // value 유효성 체크 안함
             func: false,
             select: false,
             field: '',
@@ -314,6 +315,13 @@ class DBQB {
             field = field.substring(1);
             returns.field = field;
             return returns;
+        }
+
+        // value 만 프리패스
+        if (_.startsWith(field, '?')) {
+            returns.v_continue = true;
+            field = field.substring(1);
+            returns.field = field;
         }
 
         // having AS 체크
@@ -521,7 +529,7 @@ class DBQB {
         }
 
         // join
-        const sJoin = this.getJoinQuery(active);
+        const sJoin = await this.getJoinQuery(active);
         if (sJoin === null) {
             return null;
         }
@@ -530,7 +538,7 @@ class DBQB {
         }
 
         // where
-        const sWhere = this.getWhereQuery(active);
+        const sWhere = await this.getWhereQuery(active);
         if (sWhere === null) {
             return null;
         }
@@ -555,7 +563,7 @@ class DBQB {
             hActive.whereOr = active.havingOr;
             hActive.whereType = 'having';
 
-            const sHaving = this.getWhereQuery(hActive);
+            const sHaving = await this.getWhereQuery(hActive);
             if (sHaving === null) {
                 return null;
             }
@@ -640,7 +648,7 @@ class DBQB {
         }
 
         // where
-        const sWhere = this.getWhereQuery(active);
+        const sWhere = await this.getWhereQuery(active);
         if (sWhere === null) {
             return null;
         }
@@ -650,7 +658,7 @@ class DBQB {
 
         // join (필요없는 조인 제거)
         const joinActive = this.clearJoinActive(active, info);
-        const sJoin = this.getJoinQuery(joinActive, true);
+        const sJoin = await this.getJoinQuery(joinActive, true);
         if (sJoin === null) {
             return null;
         }
@@ -761,7 +769,7 @@ class DBQB {
         info.set = `SET ${sSet}`;
 
         // where
-        const sWhere = this.getWhereQuery(active);
+        const sWhere = await this.getWhereQuery(active);
         if (sWhere === null || !sWhere || _.size(sWhere) === 0) {
             this.addErrorLogs('no where');
             return null;
@@ -823,7 +831,7 @@ class DBQB {
         info.table = `\`${active.table}\``;
 
         // where
-        const sWhere = this.getWhereQuery(active);
+        const sWhere = await this.getWhereQuery(active);
         if (sWhere === null || !sWhere || _.size(sWhere) <= 0) {
             this.addErrorLogs('no where');
             return null;
@@ -964,7 +972,7 @@ class DBQB {
         return joins;
     }
 
-    private getJoinQuery(active: IActivePrivate, clear = false) {
+    private async getJoinQuery(active: IActivePrivate, clear = false) {
         if (!active.joins || active.joins.length === 0) {
             return '';
         }
@@ -1032,7 +1040,7 @@ class DBQB {
                     table: join.table,
                     as: join.as
                 };
-                const sWhere = this.getWhereBuild(joinActive, join.on, 'AND', false);
+                const sWhere = await this.getWhereBuild(joinActive, join.on, 'AND', false);
                 if (sWhere === null || !sWhere) {
                     return null;
                 }
@@ -1047,20 +1055,20 @@ class DBQB {
         return sJoin;
     }
 
-    private getWhereQuery(active: IActivePrivate) {
+    private async getWhereQuery(active: IActivePrivate) {
         let sWhere = '';
         let whereAnd: string | null = '';
         let whereOr: string | null = '';
 
         if (_.get(active, 'where') && this.getKeys(active.where).length > 0) {
-            whereAnd = this.getWhereBuild(active, active.where, 'AND', false);
+            whereAnd = await this.getWhereBuild(active, active.where, 'AND', false);
             if (whereAnd === null || !whereAnd) {
                 return null;
             }
         }
 
         if (_.get(active, 'whereOr') && this.getKeys(active.whereOr).length > 0) {
-            whereOr = this.getWhereBuild(active, active.whereOr, 'OR', false);
+            whereOr = await this.getWhereBuild(active, active.whereOr, 'OR', false);
             if (whereOr === null || !whereOr) {
                 return null;
             }
@@ -1087,7 +1095,7 @@ class DBQB {
         return sWhere;
     }
 
-    private getWhereBuild(active: IActivePrivate, list: any, where = 'AND', bracket = false) {
+    private async getWhereBuild(active: IActivePrivate, list: any, where = 'AND', bracket = false) {
         let sReturn = '';
         const keys = this.getKeys(list);
         for (const _key of keys) {
@@ -1108,9 +1116,9 @@ class DBQB {
                     this.addErrorLogs(`where symbol : ${des}`);
                     return null;
                 }
-                keyVal = this.getWhereBuild(active, _val, des, true);
+                keyVal = await this.getWhereBuild(active, _val, des, true);
             } else {
-                keyVal = this.getWhereKeyVal(active, _key, _val);
+                keyVal = await this.getWhereKeyVal(active, _key, _val);
             }
 
             if (!keyVal) {
@@ -1127,8 +1135,22 @@ class DBQB {
         return sReturn;
     }
 
-    private getWhereKeyVal(active: IActivePrivate, key: string, val: any) {
+    private async getWhereKeyVal(active: IActivePrivate, key: string, val: any) {
         let sReturn = '';
+
+        // 서브쿼리 예외처리
+        if (val && typeof val === 'object' && !Array.isArray(val) && val.table && (val.field || val.fieldAs)) {
+            if (!_.startsWith(key, '!') && !_.startsWith(key, '?')) {
+                key = `?${key}`;
+            }
+
+            val = `(${await this.selectQuery(val)})`;
+
+            if (val === null) {
+                this.addErrorLogs(`sub query error : ${key}`);
+                return null;
+            }
+        }
 
         const aTFInfo = this.getTableField(active, key);
         if (aTFInfo === null) {
@@ -1182,7 +1204,7 @@ class DBQB {
             }
 
             // 데이터 체크
-            if (aTFInfo.type) {
+            if (aTFInfo.type && !aTFInfo.v_continue) {
                 if (_.isArray(val)) {
                     for (let _val of val) {
                         const chkVal = this.checkDataType(aTFInfo.type, _val);
@@ -1226,14 +1248,14 @@ class DBQB {
                     } else if (selectVal) {
                         sReturn += `${ifArr[aTFInfo.if]} ${val} `;
                     } else if (_.isArray(val)) {
-                        if (aTFInfo.continue) {
+                        if (aTFInfo.continue || aTFInfo.v_continue) {
                             sReturn += `${ifArr[aTFInfo.if]} (${_.join(val, ', ')}) `;
                         } else {
                             sReturn += `${ifArr[aTFInfo.if]} ("${_.join(val, '", "')}") `;
                         }
                     } else {
                         sReturn += aTFInfo.if;
-                        if (!aTFInfo.continue) {
+                        if (!aTFInfo.continue && !aTFInfo.v_continue) {
                             val = `"${val}"`;
                         }
                         sReturn += ` ${val} `;
@@ -1245,7 +1267,7 @@ class DBQB {
                 {
                     const ifArr = { '%': 'LIKE', '!%': 'NOT LIKE' };
                     sReturn += ifArr[aTFInfo.if];
-                    if (!aTFInfo.continue) {
+                    if (!aTFInfo.continue && !aTFInfo.v_continue) {
                         val = `"${val}"`;
                     }
                     sReturn += ` ${val} `;
@@ -1257,7 +1279,7 @@ class DBQB {
                 case '<=':
                 {
                     sReturn += aTFInfo.if;
-                    if (!aTFInfo.continue) {
+                    if (!aTFInfo.continue && !aTFInfo.v_continue) {
                         val = `"${val}"`;
                     }
                     sReturn += ` ${val} `;
@@ -1266,7 +1288,7 @@ class DBQB {
                 case '<=>':
                 case '<!=>':
                 {
-                    if (!aTFInfo.continue) {
+                    if (!aTFInfo.continue && !aTFInfo.v_continue) {
                         val[0] = `"${val[0]}"`;
                         val[1] = `"${val[1]}"`;
                     }

@@ -164,6 +164,13 @@ const selectWhereQuery = await dbqb.selectQuery({
                 phone: '010'
             }
         },
+        idx: {
+            table: 'profile',
+            field: ['user_idx'],
+            where: {
+                'nick %': 'test%'
+            }
+        }
     }
 });
 console.log(`selectWhereQuery : ${selectWhereQuery}`);
@@ -188,13 +195,24 @@ const selectSWhereQuery = await dbqb.selectQuery({
 console.log(`selectSWhereQuery : ${selectSWhereQuery}`);
 
 // SQL Injection 주의
+// `!`는 key / value 검사 무시 및 입력값 그대로 노출
+// `?`는 value 검사 무시 및 입력값 그대로 노출
 const bangQuery = await dbqb.selectQuery({
     table: 'user',
     where: {
         email: 'test@test.com',
+        'join_at': Symbol('user.login_at'),
         '!join_at': 'user.login_at',
+        '?join_at': 'user.login_at',
         '!phone': '"phone"',
-        '!idx': `(${await dbqb.selectQuery({
+        idx: {
+            table: 'profile',
+            field: ['user_idx'],
+            where: {
+                'nick %': 'test%'
+            }
+        },
+        '?idx': `(${await dbqb.selectQuery({
             table: 'profile',
             field: ['user_idx'],
             where: {
