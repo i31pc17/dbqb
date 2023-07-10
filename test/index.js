@@ -552,13 +552,38 @@ const countJoinQuery5 = await dbqb.countQuery({
         }
     ],
     where: {
-        'content %': 'test'
+        'content %': 'test%'
     },
     groupBy: [
       'user_idx'
     ]
 });
 console.log(`countJoinQuery5 : ${countJoinQuery5}`);
+
+const countJoinQuery6 = await dbqb.countQuery({
+    table: 'board',
+    joins: [
+        {
+            table: 'user',
+            on: 'board.user_idx',
+            joins: [
+                {
+                    table: 'profile',
+                    on: {
+                        user_idx: Symbol('user.idx')
+                    },
+                },
+            ],
+        }
+    ],
+    where: {
+        'content %': 'test%'
+    },
+    groupBy: [
+        'profile.nick'
+    ]
+});
+console.log(`countJoinQuery6 : ${countJoinQuery6}`);
 
 const forUpdateQuery = await dbqb.selectQuery({
     table: 'user',

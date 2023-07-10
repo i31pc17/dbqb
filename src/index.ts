@@ -1681,6 +1681,18 @@ class DBQB {
                 }
             }
 
+            if (active.groupBy && active.groupBy.length > 0) {
+                const groupBy = this.getGroupByQuery(active);
+                if (groupBy) {
+                    const chkExp = new RegExp(`\\\`*(${join.table}${join.as ? `|${join.as}` : ''})\\\`*\\\.`);
+                    if (chkExp.test(groupBy)) {
+                        join.clear = false;
+                        continue;
+
+                    }
+                }
+            }
+
             if (join.type !== 'LEFT') {
                 // 최상단 조인은 left 조인만 체크
                 if (join.path!.indexOf('.') === -1) {
